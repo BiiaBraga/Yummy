@@ -15,6 +15,7 @@ function AddItemCardapio() {
   const [inputPreco, setInputPreco] = useState("");
   const [inputEstoque, setInputEstoque] = useState("");
   const [inputCategoria, setInputCategoria] = useState("");
+  const [inputImagem, setInputImagem] = useState(null); // Estado para a imagem
 
   const handleSairConta = () => {
     setUserType(null);
@@ -29,20 +30,22 @@ function AddItemCardapio() {
       return;
     }
 
+    // Cria um objeto FormData para enviar dados de formulário e a imagem
+    const formData = new FormData();
+    formData.append("restauranteID", userID);
+    formData.append("nome", inputNome);
+    formData.append("descricao", inputDescricao);
+    formData.append("preco", inputPreco);
+    formData.append("estoque", inputEstoque);
+    formData.append("categoriaNome", inputCategoria);
+    if (inputImagem) {
+      formData.append("imagem", inputImagem);
+    }
+
     try {
       const response = await fetch(`${apiRoot}/adicionarItemCardapio`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          restauranteID: userID,
-          nome: inputNome,
-          descricao: inputDescricao,
-          preco: parseFloat(inputPreco),
-          estoque: parseInt(inputEstoque),
-          categoriaNome: inputCategoria, // envia nome da categoria
-        }),
+        body: formData, // Envia o FormData no corpo da requisição
       });
 
       const data = await response.json();
@@ -54,6 +57,7 @@ function AddItemCardapio() {
         setInputPreco("");
         setInputEstoque("");
         setInputCategoria("");
+        setInputImagem(null); // Limpa o estado da imagem
       } else {
         alert(data.error || "Erro ao adicionar item");
       }
@@ -67,7 +71,7 @@ function AddItemCardapio() {
     if (!userType || userType !== "Restaurante" || !userID || !userName) {
       navigate("/");
     }
-  }, []);
+  }, [userType, userID, userName, navigate]);
 
   return (
     <div className="screen d-flex flex-column align-items-center justify-content-center no-select">
@@ -181,6 +185,19 @@ function AddItemCardapio() {
                 className="card-input mb-2 p-2"
                 value={inputCategoria}
                 onChange={(e) => setInputCategoria(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="col-12">
+          <div className="row d-flex flex-wrap">
+            <div className="mb-2 d-flex flex-column col">
+              <h6 className="card-text text-start px-2 mb-1">Imagem</h6>
+              <input
+                type="file"
+                className="card-input mb-2 p-2"
+                onChange={(e) => setInputImagem(e.target.files[0])}
               />
             </div>
           </div>

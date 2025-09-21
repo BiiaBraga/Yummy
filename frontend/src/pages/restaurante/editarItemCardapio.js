@@ -19,6 +19,10 @@ function EditarItemCardapio() {
   const [inputCategoria, setInputCategoria] = useState("");
   const [inputEstoque, setInputEstoque] = useState(0);
 
+  // Novo estado para a imagem e a pré-visualização
+  const [inputImagem, setInputImagem] = useState(null);
+  const [imagemPreview, setImagemPreview] = useState("");
+
   const handleSairConta = () => {
     setUserType(null);
     setUserID(null);
@@ -33,20 +37,24 @@ function EditarItemCardapio() {
     }
 
     try {
+      // Cria um objeto FormData para enviar a imagem e os dados do formulário
+      const formData = new FormData();
+      formData.append("nome", inputNome);
+      formData.append("descricao", inputDescricao);
+      formData.append("preco", parseFloat(inputPreco));
+      formData.append("categoriaNome", inputCategoria);
+      formData.append("estoque", parseInt(inputEstoque));
+      
+      // Adiciona a imagem apenas se uma nova imagem foi selecionada
+      if (inputImagem) {
+        formData.append("imagem", inputImagem);
+      }
+
       const response = await fetch(
         `${apiRoot}/editarItemCardapio?pratoID=${item.PratoID}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            nome: inputNome,
-            descricao: inputDescricao,
-            preco: parseFloat(inputPreco),
-            categoriaNome: inputCategoria,
-            estoque: parseInt(inputEstoque), // ← adicionado
-          }),
+          body: formData, // Envia o FormData
         }
       );
 
@@ -92,7 +100,6 @@ function EditarItemCardapio() {
       if (!item) return;
 
       try {
-        // Busca os itens do restaurante e encontra o prato que estamos editando
         const response = await fetch(`${apiRoot}/listarItensRestaurante?restauranteID=${item.RestauranteID}`);
         const data = await response.json();
         const pratoAtual = data.find(p => p.PratoID === item.PratoID);
@@ -102,8 +109,8 @@ function EditarItemCardapio() {
           setInputDescricao(pratoAtual.Descricao);
           setInputPreco(pratoAtual.Preco);
           setInputEstoque(pratoAtual.Estoque || 0);
+          setImagemPreview(`${apiRoot}${pratoAtual.URL_Imagem}`);
 
-          // Busca todas as categorias e encontra o nome pelo CategoriaID
           const responseCat = await fetch(`${apiRoot}/listarCategorias`);
           const categorias = await responseCat.json();
           const cat = categorias.find(c => c.CategoriaID === pratoAtual.CategoriaID);
@@ -173,6 +180,13 @@ function EditarItemCardapio() {
       >
         <h4 className="card-title my-4">Editar Item do Cardápio</h4>
 
+        {/* Pré-visualização da imagem */}
+        {imagemPreview && (
+          <div className="image-preview mb-3">
+            <img src={imagemPreview} alt="Pré-visualização da imagem" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+          </div>
+        )}
+
         <div className="col-12">
           <div className="row d-flex flex-wrap">
             <div className="mb-2 d-flex flex-column col">
@@ -206,7 +220,7 @@ function EditarItemCardapio() {
             </div>
           </div>
         </div>
-
+        
         <div className="col-12">
           <div className="row d-flex flex-wrap">
             <div className="mb-2 d-flex flex-column col">
@@ -230,6 +244,28 @@ function EditarItemCardapio() {
                 className="card-input mb-2 p-2"
                 value={inputCategoria}
                 onChange={(e) => setInputCategoria(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Adiciona o campo de imagem */}
+        <div className="col-12">
+          <div className="row d-flex flex-wrap">
+            <div className="mb-2 d-flex flex-column col">
+              <h6 className="card-text text-start px-2 mb-1">Imagem (opcional)</h6>
+              <input
+                type="file"
+                className="card-input mb-2 p-2"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  setInputImagem(file);
+                  if (file) {
+                    setImagemPreview(URL.createObjectURL(file));
+                  } else {
+                    setImagemPreview("");
+                  }
+                }}
               />
             </div>
           </div>

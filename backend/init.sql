@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS Yummy.Prato(
     Disponibilidade BOOLEAN NOT NULL,
     Estoque INT NOT NULL,
     CategoriaID INT NOT NULL,
+    URL_Imagem VARCHAR(255),
     FOREIGN KEY (RestauranteID) REFERENCES Yummy.Restaurante(RestauranteID),
     FOREIGN KEY (CategoriaID) REFERENCES Yummy.CategoriasPratos(CategoriaID)
 );

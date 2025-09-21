@@ -37,10 +37,8 @@ function PaginaRestaurante() {
         throw new Error(`Erro na resposta do servidor: ${response.status}`);
       }
       const data = await response.json();
-      console.log("Dados brutos do restaurante:", data); // Depuração
       const restauranteData = Array.isArray(data) ? data[0] : data;
       setRes([restauranteData]); // Sempre define como array com o objeto único
-      console.log("Res após setRes:", [restauranteData]); // Log imediato
     } catch (error) {
       console.error("Erro ao buscar restaurante", error);
       setRes([]); // Define array vazio em caso de erro
@@ -57,17 +55,17 @@ function PaginaRestaurante() {
       if (Array.isArray(data)) {
         setItems(data);
         if (data.length === 0) {
-          alert("Nenhum item encontrado");
+          console.log("Nenhum item encontrado");
         }
       } else {
         console.error("Resposta inválida em fetchItemsPesquisa:", data);
         setItems([]);
-        alert("Erro ao buscar itens pesquisados");
+        console.log("Erro ao buscar itens pesquisados");
       }
     } catch (error) {
       console.error("Erro ao buscar itens pesquisados", error);
       setItems([]);
-      alert("Erro ao conectar com o servidor!");
+      console.log("Erro ao conectar com o servidor!");
     }
   };
 
@@ -87,11 +85,11 @@ function PaginaRestaurante() {
       if (data === "OK") {
         fetchItems(); // Recarrega os itens após alterar disponibilidade
       } else {
-        alert("Erro ao trocar disponibilidade");
+        console.log("Erro ao trocar disponibilidade");
       }
     } catch (error) {
       console.error("Erro ao trocar disponibilidade", error);
-      alert("Erro ao conectar com o servidor!");
+      console.log("Erro ao conectar com o servidor!");
     }
   };
 
@@ -113,10 +111,9 @@ function PaginaRestaurante() {
     }
     fetchItems();
     fetchRestaurantes();
-  }, []);
+  }, [userType, userID]);
 
   const restaurante = res && res.length > 0 ? res[0] : null;
-  console.log("Restaurante no render:", restaurante); // Log no render
 
   return (
     <div className="screen no-select">
@@ -198,6 +195,18 @@ function PaginaRestaurante() {
                   key={item.PratoID}
                   className="menu-item p-3 d-flex flex-column col"
                 >
+                  <div className="image-container mb-3">
+                    <img
+                      src={`${apiRoot}${item.URL_Imagem}`}
+                      alt={item.Nome}
+                      className="item-image"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://placehold.co/150x150/d1d5db/374151?text=${encodeURIComponent(item.Nome.substring(0, 10))}`;
+                      }}
+                    />
+                  </div>
+
                   <div className="d-flex flex-row align-items-center mb-3">
                     <h5 className="align-self-center m-0">{item.Nome}</h5>
                     {item.Disponibilidade === 1 ? (

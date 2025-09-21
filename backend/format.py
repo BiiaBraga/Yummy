@@ -46,6 +46,8 @@ def formataPedido(pedido):
     }
 
 def formataPrato(prato):
+    if not prato:
+        return None
     return {
         "PratoID": prato[0],
         "RestauranteID": prato[1],
@@ -54,7 +56,8 @@ def formataPrato(prato):
         "Preco": prato[4],
         "Disponibilidade": prato[5],
         "Estoque": prato[6],
-        "CategoriaID": prato[7]
+        "CategoriaID": prato[7],
+        "URL_Imagem": prato[8]
     }
 
 def formataItemPedido(item):

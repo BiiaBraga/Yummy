@@ -270,9 +270,20 @@ function PaginaCliente() {
             {items.length !== 0 ? (
               items.map((item) => (
                 <div key={item.PratoID} className="menu-item p-3 d-flex flex-column col">
-                  <h5>{item.Nome}</h5>
-                  <p className="menu-item-desc">{item.Descricao}</p>
-                  <p className="item-price mt-auto">R$ {item.Preco.toFixed(2)}</p>
+                  {/* Adiciona o container da imagem, usando a URL do banco de dados */}
+                  <div className="image-container">
+                    <img
+                      src={`${apiRoot}${item.URL_Imagem}` || '/caminho/para/imagem/padrao.jpg'} 
+                      alt={item.Nome}
+                      className="item-image"
+                    />
+                  </div>
+                  
+                  <div className="item-details">
+                    <h5>{item.Nome}</h5>
+                    <p className="menu-item-desc">{item.Descricao}</p>
+                    <p className="item-price mt-auto">R$ {item.Preco.toFixed(2)}</p>
+                  </div>
                   <input
                     type="text"
                     placeholder="Observação"

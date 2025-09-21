@@ -1,3 +1,5 @@
+import os
+from werkzeug.utils import secure_filename
 from flask import Flask, jsonify, request
 from connector import connect
 from format import (
@@ -9,6 +11,14 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:*"}})
+
+UPLOAD_FOLDER = 'static/uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # ---------------------- TESTE DE CONEXÃO ----------------------
 @app.route('/testAPI', methods=['GET'])
@@ -246,41 +256,28 @@ def listarRestaurantes():
 @app.route('/listarItensRestaurante', methods=['GET'])
 def listarItensRestaurante():
     restauranteID = request.args.get('restauranteID')
-    print(f"Chamando /listarItensRestaurante com restauranteID={restauranteID}")  # Log
     conn = connect()
-    cursor = conn.cursor()  # Mudança: sem dictionary=True, retorna tuplas
+    cursor = conn.cursor()
     try:
-        cursor.execute("SET lc_time_names = 'pt_BR'")
-        query = """
-            SELECT p.*
-            FROM Prato p
-            LEFT JOIN HorariosFuncionamento h ON p.RestauranteID = h.RestauranteID
-            WHERE p.Disponibilidade = TRUE
-            AND (h.DiaSemana IS NULL OR (
-                h.DiaSemana = DAYNAME(CURDATE())
-                AND CURRENT_TIME BETWEEN TIME(h.HrAbertura) AND TIME(h.HrFechamento)
-            ))
-        """
-        params = []
         if restauranteID:
-            query += " AND p.RestauranteID = %s"
-            params.append(restauranteID)
-        
-        cursor.execute(query, params)
+            cursor.execute("""
+                SELECT
+                    PratoID, RestauranteID, Nome, Descricao, Preco, Disponibilidade, Estoque, CategoriaID, URL_Imagem
+                FROM Prato
+                WHERE RestauranteID = %s
+            """, (restauranteID,))
+        else:
+            cursor.execute("""
+                SELECT
+                    PratoID, RestauranteID, Nome, Descricao, Preco, Disponibilidade, Estoque, CategoriaID, URL_Imagem
+                FROM Prato
+            """)
+
         pratos = cursor.fetchall()
-        print(f"Itens brutos retornados do banco para restauranteID={restauranteID}: {pratos}")  # Log (tuplas)
-        itens = []
-        for prato in pratos:
-            formatted = formataPrato(prato)
-            if formatted:
-                itens.append(formatted)
-            else:
-                print(f"Prato ignorado devido a erro de formatação: {prato}")  # Log
-        print(f"Itens formatados para restauranteID={restauranteID}: {len(itens)} itens - {itens}")  # Log
-        return jsonify(itens), 200
+        pratosFormatados = [formataPrato(prato) for prato in pratos]
+        return jsonify(pratosFormatados), 200
     except Exception as e:
-        print(f"Erro ao listar itens: {str(e)}")  # Log
-        return jsonify([]), 200
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         cursor.close()
         conn.close()
@@ -289,34 +286,21 @@ def listarItensRestaurante():
 @app.route('/listarPratosRestaurante', methods=['GET'])
 def listarPratosRestaurante():
     restauranteID = request.args.get('restauranteID')
-    print(f"Chamando /listarPratosRestaurante com restauranteID={restauranteID}")  # Log
-    if not restauranteID:
-        print("Nenhum restauranteID fornecido, retornando []")  # Log
-        return jsonify([]), 200
     conn = connect()
-    cursor = conn.cursor()  # Mudança: sem dictionary=True, retorna tuplas
+    cursor = conn.cursor()
     try:
-        query = """
-            SELECT p.*
-            FROM Prato p
-            WHERE p.Disponibilidade = TRUE
-            AND p.RestauranteID = %s
-        """
-        cursor.execute(query, (restauranteID,))
+        cursor.execute("""
+            SELECT
+                PratoID, RestauranteID, Nome, Descricao, Preco, Disponibilidade, Estoque, CategoriaID, URL_Imagem
+            FROM Prato
+            WHERE RestauranteID = %s
+        """, (restauranteID,))
+
         pratos = cursor.fetchall()
-        print(f"Pratos brutos retornados do banco para restauranteID={restauranteID}: {pratos}")  # Log (tuplas)
-        itens = []
-        for prato in pratos:
-            formatted = formataPrato(prato)
-            if formatted:
-                itens.append(formatted)
-            else:
-                print(f"Prato ignorado devido a erro de formatação: {prato}")  # Log
-        print(f"Pratos formatados para restauranteID={restauranteID}: {len(itens)} itens - {itens}")  # Log
-        return jsonify(itens), 200
+        pratosFormatados = [formataPrato(prato) for prato in pratos]
+        return jsonify(pratosFormatados), 200
     except Exception as e:
-        print(f"Erro ao listar pratos: {str(e)}")  # Log
-        return jsonify([]), 200
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         cursor.close()
         conn.close()
@@ -355,34 +339,26 @@ def listarItensPesquisa():
     pesquisa = request.args.get('pesquisa')
     restauranteID = request.args.get('restauranteID')
     conn = connect()
-    cursor = conn.cursor()  # Mudança: sem dictionary=True, retorna tuplas
+    cursor = conn.cursor()
     try:
         query = """
-            SELECT p.*
-            FROM Prato p
-            WHERE p.Nome LIKE %s
-            AND p.Disponibilidade = TRUE
+            SELECT
+                PratoID, RestauranteID, Nome, Descricao, Preco, Disponibilidade, Estoque, CategoriaID, URL_Imagem
+            FROM Prato
+            WHERE Nome LIKE %s OR Descricao LIKE %s
         """
-        params = ['%' + pesquisa + '%']
+        params = (f"%{pesquisa}%", f"%{pesquisa}%")
+
         if restauranteID:
-            query += " AND p.RestauranteID = %s"
-            params.append(restauranteID)
-        
+            query += " AND RestauranteID = %s"
+            params += (restauranteID,)
+
         cursor.execute(query, params)
         pratos = cursor.fetchall()
-        print(f"Pratos pesquisados brutos: {pratos}")  # Log
-        itens = []
-        for prato in pratos:
-            formatted = formataPrato(prato)
-            if formatted:
-                itens.append(formatted)
-            else:
-                print(f"Prato pesquisado ignorado: {prato}")  # Log
-        print(f"Pratos pesquisados formatados: {len(itens)} itens - {itens}")  # Log
-        return jsonify(itens), 200
+        pratosFormatados = [formataPrato(prato) for prato in pratos]
+        return jsonify(pratosFormatados), 200
     except Exception as e:
-        print(f"Erro ao listar itens pesquisados: {str(e)}")  # Log
-        return jsonify([]), 200
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         cursor.close()
         conn.close()
@@ -571,16 +547,27 @@ def saiuEntrega():
 # ---------------------- CARDÁPIO ----------------------
 @app.route('/adicionarItemCardapio', methods=['POST'])
 def adicionarItemCardapio():
-    data = request.json
-    print(f"Dados recebidos para adicionar item: {data}")  # Log para depuração
+    # Mude para request.form para os dados de texto e request.files para a imagem
+    print(f"Dados de formulário recebidos: {request.form}") # Log para depuração
+    print(f"Arquivos recebidos: {request.files}") # Log para depuração
+
     conn = connect()
     cursor = conn.cursor(dictionary=True)
     conn.start_transaction()
+    
     try:
-        categoria_nome = data.get('categoriaNome')
-        if not categoria_nome:
-            return jsonify({"error": "Categoria é obrigatória"}), 400
+        nome = request.form.get('nome')
+        descricao = request.form.get('descricao')
+        preco = request.form.get('preco')
+        estoque = request.form.get('estoque')
+        categoria_nome = request.form.get('categoriaNome')
+        restauranteID = request.form.get('restauranteID')
+        imagem_file = request.files.get('imagem')
 
+        if not all([nome, descricao, preco, estoque, categoria_nome, restauranteID]):
+            return jsonify({"error": "Preencha todos os campos obrigatórios"}), 400
+
+        # Verifica ou insere a categoria
         cursor.execute("SELECT CategoriaID FROM CategoriasPratos WHERE NomeCategoria = %s", (categoria_nome,))
         row = cursor.fetchone()
         if row:
@@ -589,25 +576,44 @@ def adicionarItemCardapio():
             cursor.execute("INSERT INTO CategoriasPratos (NomeCategoria) VALUES (%s)", (categoria_nome,))
             categoriaID = cursor.lastrowid
 
+        # Salva a imagem no servidor
+        url_imagem = None
+        if imagem_file:
+            # Defina o caminho para a pasta de upload
+            UPLOAD_FOLDER = 'static/uploads'
+            if not os.path.exists(UPLOAD_FOLDER):
+                os.makedirs(UPLOAD_FOLDER)
+            
+            # Gera um nome de arquivo seguro e salva a imagem
+            filename = secure_filename(imagem_file.filename)
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            imagem_file.save(filepath)
+            
+            # Constrói a URL para o front-end
+            url_imagem = f'/{filepath}'
+            print(f"Imagem salva em: {url_imagem}") # Log
+
+        # Insere os dados do prato no banco de dados, incluindo a URL da imagem
         cursor.execute("""
-            INSERT INTO Prato (RestauranteID, Nome, Descricao, Preco, Disponibilidade, Estoque, CategoriaID)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO Prato (RestauranteID, Nome, Descricao, Preco, Disponibilidade, Estoque, CategoriaID, URL_Imagem)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            data['restauranteID'], 
-            data['nome'], 
-            data['descricao'], 
-            float(data['preco']), 
+            restauranteID,
+            nome,
+            descricao,
+            float(preco),
             True,
-            int(data['estoque']), 
-            categoriaID
+            int(estoque),
+            categoriaID,
+            url_imagem  # AQUI está a URL da imagem que você salvou
         ))
 
         conn.commit()
-        print(f"Item adicionado com sucesso: PratoID={cursor.lastrowid}")  # Log
+        print(f"Item adicionado com sucesso: PratoID={cursor.lastrowid}")
         return jsonify({"success": True, "message": "Item Adicionado"}), 200
     except Exception as e:
         conn.rollback()
-        print(f"Erro ao adicionar item: {str(e)}")  # Log
+        print(f"Erro ao adicionar item: {str(e)}")
         return jsonify({"error": str(e)}), 500
     finally:
         cursor.close()
@@ -625,39 +631,64 @@ def listar_categorias():
 
 @app.route('/editarItemCardapio', methods=['POST'])
 def editarItemCardapio():
-    data = request.json
     pratoID = request.args.get('pratoID')
     conn = connect()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     conn.start_transaction()
 
     try:
-        categoria_nome = data.get('categoriaNome')
+        # Lê os dados dos campos de texto (FormData)
+        nome = request.form['nome']
+        descricao = request.form['descricao']
+        preco = float(request.form['preco'])
+        estoque = int(request.form['estoque'])
+        categoria_nome = request.form['categoriaNome']
         
-        # 🔹 Verifica se a categoria foi preenchida
-        if not categoria_nome or categoria_nome.strip() == "":
-            return jsonify({"success": False, "error": "Categoria é obrigatória"}), 400
+        # Lógica para a imagem
+        imagem_path = None
+        # Verifica se um arquivo de imagem foi enviado na requisição
+        if 'imagem' in request.files:
+            file = request.files['imagem']
+            # Garante que o arquivo existe e que o nome do arquivo não está vazio
+            if file and file.filename != '' and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                
+                # Salva a imagem na pasta 'static/uploads'
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(file_path)
+                
+                # Cria a URL que será salva no banco de dados
+                imagem_path = f"/static/uploads/{filename}"
 
-        # 🔹 Verifica se a categoria já existe
+        # Verifica se a categoria existe ou a cria
         cursor.execute("SELECT CategoriaID FROM CategoriasPratos WHERE NomeCategoria = %s", (categoria_nome,))
         row = cursor.fetchone()
         if row:
-            categoriaID = row['CategoriaID']
+            categoriaID = row[0]
         else:
-            # 🔹 Cria a categoria caso não exista
             cursor.execute("INSERT INTO CategoriasPratos (NomeCategoria) VALUES (%s)", (categoria_nome,))
             conn.commit()
             categoriaID = cursor.lastrowid
-
-        # 🔹 Atualiza prato
-        cursor.execute("""
-            UPDATE Prato
-            SET Nome = %s, Descricao = %s, Preco = %s, Estoque = %s, CategoriaID = %s
-            WHERE PratoID = %s
-        """, (
-            data['nome'], data['descricao'], float(data['preco']),
-            int(data['estoque']), categoriaID, pratoID
-        ))
+        
+        # Atualiza o prato
+        if imagem_path:
+            # Se uma nova imagem foi enviada, atualiza também a URL
+            cursor.execute("""
+                UPDATE Prato
+                SET Nome = %s, Descricao = %s, Preco = %s, Estoque = %s, CategoriaID = %s, URL_Imagem = %s
+                WHERE PratoID = %s
+            """, (
+                nome, descricao, preco, estoque, categoriaID, imagem_path, pratoID
+            ))
+        else:
+            # Se nenhuma imagem foi enviada, atualiza apenas os outros campos
+            cursor.execute("""
+                UPDATE Prato
+                SET Nome = %s, Descricao = %s, Preco = %s, Estoque = %s, CategoriaID = %s
+                WHERE PratoID = %s
+            """, (
+                nome, descricao, preco, estoque, categoriaID, pratoID
+            ))
 
         conn.commit()
         return jsonify({"success": True, "message": "Prato atualizado com sucesso"}), 200
