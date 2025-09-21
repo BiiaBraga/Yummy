@@ -12,51 +12,72 @@ function PaginaCliente() {
 
   const [showCart, setShowCart] = useState(true);
   const [showPerfilOptions, setShowPerfilOptions] = useState(false);
-
   const [items, setItems] = useState([]);
   const [res, setRes] = useState([]);
-
   const [observacoes, setObservacoes] = useState({});
-
   const [pesquisa, setPesquisa] = useState("");
+  const [selectedRestauranteID, setSelectedRestauranteID] = useState(null); // Novo estado
 
   // Buscar itens do cardápio
   const fetchItems = async () => {
     try {
-      const response = await fetch(`${apiRoot}/listarItensRestaurante`);
+      let url = `${apiRoot}/listarItensRestaurante`;
+      if (selectedRestauranteID) {
+        url = `${apiRoot}/listarPratosRestaurante?restauranteID=${selectedRestauranteID}`;
+      }
+      const response = await fetch(url);
       const data = await response.json();
-      setItems(data);
+      setItems(Array.isArray(data) ? data : []);
     } catch (error) {
       console.log(error);
       alert("Erro ao conectar com o servidor!");
+      setItems([]);
     }
   };
 
+  // Buscar restaurantes (com status de aberto/fechado)
   const fetchRestaurantes = async () => {
     try {
       const response = await fetch(`${apiRoot}/listarRestaurantes`);
       const data = await response.json();
-      setRes(data);
+      const restaurantesComStatus = await Promise.all(
+        data.map(async (restaurante) => {
+          const horarioResponse = await fetch(
+            `${apiRoot}/verificarHorarioRestaurante?restauranteID=${restaurante.RestauranteID}`
+          );
+          const horarioData = await horarioResponse.json();
+          return { ...restaurante, Aberto: horarioData.aberto };
+        })
+      );
+      setRes(restaurantesComStatus);
     } catch (error) {
       console.log(error);
       alert("Erro ao conectar com o servidor!");
+      setRes([]);
     }
   };
 
   const fetchItemsPesquisa = async (pesquisa) => {
     try {
-      const response = await fetch(
-        `${apiRoot}/listarItensPesquisa?pesquisa=${pesquisa}`
-      );
-      const data = await response.json();
-
-      if (data.length === 0) {
-        alert("Nenhum item encontrado");
+      let url = `${apiRoot}/listarItensPesquisa?pesquisa=${pesquisa}`;
+      if (selectedRestauranteID) {
+        url += `&restauranteID=${selectedRestauranteID}`;
       }
-      setItems(data);
+      const response = await fetch(url);
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setItems(data);
+        if (data.length === 0) {
+          alert("Nenhum item encontrado");
+        }
+      } else {
+        setItems([]);
+        alert("Erro ao buscar itens pesquisados");
+      }
     } catch (error) {
       console.log(error);
       alert("Erro ao conectar com o servidor!");
+      setItems([]);
     }
   };
 
@@ -74,6 +95,12 @@ function PaginaCliente() {
   const handleAddToCart = (item) => {
     const observacao = observacoes[item.PratoID] || "";
     item.Observacao = observacao;
+
+    const restaurante = res.find((r) => r.RestauranteID === item.RestauranteID);
+    if (!restaurante || !restaurante.Aberto) {
+      alert("Este restaurante está fechado no momento.");
+      return;
+    }
 
     if (
       cartItems.length > 0 &&
@@ -94,6 +121,18 @@ function PaginaCliente() {
     }
   };
 
+  const handleRestauranteClick = (restauranteID) => {
+    setSelectedRestauranteID(restauranteID);
+    setPesquisa(""); // Limpa a pesquisa ao selecionar um restaurante
+    fetchItems(); // Carrega pratos do restaurante selecionado
+  };
+
+  const handleVoltar = () => {
+    setSelectedRestauranteID(null);
+    setPesquisa("");
+    fetchItems(); // Carrega todos os pratos de restaurantes abertos
+  };
+
   const handleFinalizarPedido = async () => {
     if (cartItems.length === 0) {
       alert("Carrinho vazio");
@@ -111,13 +150,18 @@ function PaginaCliente() {
 
       const data = await response.json();
 
-      if (data !== "Erro") {
+      if (Array.isArray(data)) {
         let reload = false;
         data.forEach((item) => {
           const itemLocal = item.Item;
           const disponibilidadeLocal = item.Disponibilidade;
+          const restauranteAberto = item.RestauranteAberto;
 
-          if (disponibilidadeLocal === 0) {
+          if (!restauranteAberto) {
+            alert(`O restaurante de ${itemLocal.Nome} está fechado.`);
+            removeFromCartAll(itemLocal);
+            reload = true;
+          } else if (disponibilidadeLocal === 0) {
             alert(`Item ${itemLocal.Nome} esgotado`);
             removeFromCartAll(itemLocal);
             reload = true;
@@ -140,14 +184,14 @@ function PaginaCliente() {
     }
     fetchItems();
     fetchRestaurantes();
-  }, []);
+  }, [selectedRestauranteID]); // Atualiza quando selectedRestauranteID mudar
 
   return (
     <div className="screen no-select">
       <div className="background"></div>
       <header className="header d-flex flex-row justify-content-between p-3">
         <div className="d-flex align-items-center gap-4">
-          <div className="header-title" onClick={() => navigate("/")}>Food-EUS</div>
+          <div className="header-title" onClick={() => navigate("/")}>Yummy</div>
           <div className="header-subtitle p-2" onClick={() => navigate(`/pagina${userType}`)}>
             Inicio
           </div>
@@ -192,24 +236,39 @@ function PaginaCliente() {
           <h3 className="p-3 menu-title">Restaurantes</h3>
           <div className="menu-container px-3 d-flex gap-3 flex-wrap">
             {res.length !== 0 ? (
-              res.map((item) =>
-                <div key={item.RestauranteID} className="menu-item p-3 d-flex flex-column col">
+              res.map((item) => (
+                <div
+                  key={item.RestauranteID}
+                  className="menu-item p-3 d-flex flex-column col"
+                  onClick={() => handleRestauranteClick(item.RestauranteID)}
+                  style={{ cursor: "pointer" }}
+                >
                   <h5>{item.Nome}</h5>
                   <p className="item-price mt-auto">
                     Nota: {item.NotaMedia !== null ? item.NotaMedia.toFixed(1) : "Sem avaliações"}
                   </p>
+                  <p className={item.Aberto ? "text-success" : "text-danger"}>
+                    {item.Aberto ? "Aberto" : "Fechado"}
+                  </p>
                 </div>
-              )
+              ))
             ) : (
               <div className="d-flex flex-column align-items-center justify-content-center no-select">
                 <h4 className="bold">Nenhum restaurante encontrado</h4>
               </div>
             )}
           </div>
-          <h3 className="p-3 menu-title">Menu</h3>
+          <div className="d-flex align-items-center">
+            <h3 className="p-3 menu-title">Menu</h3>
+            {selectedRestauranteID && (
+              <button className="red-button p-2 m-2" onClick={handleVoltar}>
+                Voltar
+              </button>
+            )}
+          </div>
           <div className="menu-container px-3 d-flex gap-3 flex-wrap">
             {items.length !== 0 ? (
-              items.map((item) =>
+              items.map((item) => (
                 <div key={item.PratoID} className="menu-item p-3 d-flex flex-column col">
                   <h5>{item.Nome}</h5>
                   <p className="menu-item-desc">{item.Descricao}</p>
@@ -221,11 +280,17 @@ function PaginaCliente() {
                     onChange={(e) => handleObservacao(item.PratoID, e.target.value)}
                     value={observacoes[item.PratoID] || ""}
                   />
-                  <button className="red-button p-2 no-select" onClick={() => handleAddToCart(item)}>
-                    Adicionar ao carrinho
+                  <button
+                    className="red-button p-2 no-select"
+                    onClick={() => handleAddToCart(item)}
+                    disabled={!res.find((r) => r.RestauranteID === item.RestauranteID)?.Aberto}
+                  >
+                    {res.find((r) => r.RestauranteID === item.RestauranteID)?.Aberto
+                      ? "Adicionar ao carrinho"
+                      : "Restaurante fechado"}
                   </button>
                 </div>
-              )
+              ))
             ) : (
               <div className="d-flex flex-column align-items-center justify-content-center no-select">
                 <h4 className="bold">Nenhum item encontrado</h4>

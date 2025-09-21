@@ -15,6 +15,7 @@ function Perfil() {
   const [inputEndereco, setInputEndereco] = useState({ rua: "", numero: "", bairro: "", cep: "" });
   const [inputCulinaria, setInputCulinaria] = useState("");
   const [inputHorarios, setInputHorarios] = useState([]);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false); // Novo estado para a modal
 
   const handleSairConta = () => {
     setUserType(null);
@@ -111,6 +112,31 @@ function Perfil() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    try {
+      const response = await fetch(`${apiRoot}/excluirConta`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userID, userType }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert(errorData.error || "Erro ao excluir conta!");
+        return;
+      }
+
+      alert("Conta excluída com sucesso!");
+      setUserType(null);
+      setUserID(null);
+      setUserName(null);
+      navigate("/");
+    } catch (error) {
+      console.log(error);
+      alert("Erro ao conectar com o servidor!");
+    }
+  };
+
   useEffect(() => {
     if (!userType || !userID) navigate("/");
     fetchUserInfo();
@@ -191,6 +217,19 @@ function Perfil() {
         </div>
 
         <button className="red-button my-3 p-2 col-5" onClick={handleAtualizarPerfil}>Atualizar</button>
+        <button className="red-button my-3 p-2 col-5" onClick={() => setShowConfirmDelete(true)}>Excluir Conta</button>
+
+        {/* Modal de Confirmação */}
+        {showConfirmDelete && (
+          <div className="modal" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <div className="modal-content" style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', textAlign: 'center' }}>
+              <h4>Tem certeza?</h4>
+              <p>Essa ação excluirá sua conta permanentemente.</p>
+              <button className="red-button p-2 m-2" onClick={handleDeleteAccount}>Sim</button>
+              <button className="white-button p-2 m-2" onClick={() => setShowConfirmDelete(false)}>Não</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

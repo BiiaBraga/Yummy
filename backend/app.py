@@ -8,7 +8,7 @@ from format import (
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": "http://localhost:*"}})
 
 # ---------------------- TESTE DE CONEXÃO ----------------------
 @app.route('/testAPI', methods=['GET'])
@@ -60,6 +60,7 @@ def login():
 @app.route('/cadastro', methods=['POST'])
 def cadastro():
     data = request.json
+    print(f"Dados recebidos no cadastro: {data}")  # Adiciona log para depuração
     if not data or "userType" not in data:
         return jsonify("badRequest"), 400
 
@@ -93,7 +94,10 @@ def cadastro():
         return jsonify("cadastroOK"), 200
     except Exception as e:
         conn.rollback()
-        return jsonify({"Erro": str(e)}), 500
+        # Verifica se o erro é devido a duplicação de nome
+        if "duplicate key value violates unique constraint" in str(e) or "duplicate" in str(e).lower():
+            return jsonify({"error": "Nome já existente, escolha outro"}), 400
+        return jsonify({"error": "Erro interno do servidor"}), 500
     finally:
         cursor.close()
         conn.close()
@@ -141,6 +145,47 @@ def update():
         conn.rollback()
         print(f"Erro ao atualizar perfil: {str(e)}")  # Depuração
         return jsonify({"Erro": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+# ---------------------- EXCLUIR PERFIL ----------------------
+@app.route('/excluirConta', methods=['DELETE', 'OPTIONS'])
+def excluir_conta():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200  # Responde ao preflight com 200 OK
+
+    data = request.json
+    if not data or 'userID' not in data or 'userType' not in data:
+        return jsonify({"error": "Dados inválidos"}), 400
+
+    userID = data['userID']
+    userType = data['userType']
+    conn = connect()
+    cursor = conn.cursor()
+    conn.start_transaction()
+
+    try:
+        # Exclui horários (se for restaurante)
+        if userType == "Restaurante":
+            cursor.execute("DELETE FROM HorariosFuncionamento WHERE RestauranteID = %s", (userID,))
+            cursor.execute("DELETE FROM Restaurante WHERE RestauranteID = %s", (userID,))
+
+        # Exclui cliente (se for cliente)
+        elif userType == "Cliente":
+            cursor.execute("DELETE FROM Cliente WHERE ClienteID = %s", (userID,))
+
+        # Exclui endereço
+        cursor.execute("DELETE FROM Endereco WHERE UserID = %s", (userID,))
+        # Exclui usuário
+        cursor.execute("DELETE FROM Usuario WHERE UserID = %s", (userID,))
+
+        conn.commit()
+        return jsonify({"message": "Conta excluída com sucesso"}), 200
+    except Exception as e:
+        conn.rollback()
+        print(f"Erro ao excluir conta: {str(e)}")
+        return jsonify({"error": "Erro ao excluir conta"}), 500
     finally:
         cursor.close()
         conn.close()
@@ -197,31 +242,150 @@ def listarRestaurantes():
         restaurantes = [formataRestaurante(r) for r in cursor.fetchall()]
         return jsonify(restaurantes), 200
 
-# ---------------------- LISTAR ITENS RESTAURANTE ----------------------
+# ---------------------- LISTAR ITENS RESTAURANTE (APENAS ABERTOS) ----------------------
 @app.route('/listarItensRestaurante', methods=['GET'])
 def listarItensRestaurante():
     restauranteID = request.args.get('restauranteID')
+    print(f"Chamando /listarItensRestaurante com restauranteID={restauranteID}")  # Log
     conn = connect()
-    cursor = conn.cursor()
+    cursor = conn.cursor()  # Mudança: sem dictionary=True, retorna tuplas
+    try:
+        cursor.execute("SET lc_time_names = 'pt_BR'")
+        query = """
+            SELECT p.*
+            FROM Prato p
+            LEFT JOIN HorariosFuncionamento h ON p.RestauranteID = h.RestauranteID
+            WHERE p.Disponibilidade = TRUE
+            AND (h.DiaSemana IS NULL OR (
+                h.DiaSemana = DAYNAME(CURDATE())
+                AND CURRENT_TIME BETWEEN TIME(h.HrAbertura) AND TIME(h.HrFechamento)
+            ))
+        """
+        params = []
+        if restauranteID:
+            query += " AND p.RestauranteID = %s"
+            params.append(restauranteID)
+        
+        cursor.execute(query, params)
+        pratos = cursor.fetchall()
+        print(f"Itens brutos retornados do banco para restauranteID={restauranteID}: {pratos}")  # Log (tuplas)
+        itens = []
+        for prato in pratos:
+            formatted = formataPrato(prato)
+            if formatted:
+                itens.append(formatted)
+            else:
+                print(f"Prato ignorado devido a erro de formatação: {prato}")  # Log
+        print(f"Itens formatados para restauranteID={restauranteID}: {len(itens)} itens - {itens}")  # Log
+        return jsonify(itens), 200
+    except Exception as e:
+        print(f"Erro ao listar itens: {str(e)}")  # Log
+        return jsonify([]), 200
+    finally:
+        cursor.close()
+        conn.close()
 
-    if restauranteID:
-        cursor.execute("SELECT * FROM Prato WHERE RestauranteID = %s", (restauranteID,))
-        itens = [formataPrato(p) for p in cursor.fetchall()]
-    else:
-        cursor.execute("SELECT * FROM Prato WHERE Disponibilidade = 1")
-        itens = [formataPrato(p) for p in cursor.fetchall()]
+# ---------------------- LISTAR PRATOS RESTAURANTE (TODOS DISPONÍVEIS) ----------------------
+@app.route('/listarPratosRestaurante', methods=['GET'])
+def listarPratosRestaurante():
+    restauranteID = request.args.get('restauranteID')
+    print(f"Chamando /listarPratosRestaurante com restauranteID={restauranteID}")  # Log
+    if not restauranteID:
+        print("Nenhum restauranteID fornecido, retornando []")  # Log
+        return jsonify([]), 200
+    conn = connect()
+    cursor = conn.cursor()  # Mudança: sem dictionary=True, retorna tuplas
+    try:
+        query = """
+            SELECT p.*
+            FROM Prato p
+            WHERE p.Disponibilidade = TRUE
+            AND p.RestauranteID = %s
+        """
+        cursor.execute(query, (restauranteID,))
+        pratos = cursor.fetchall()
+        print(f"Pratos brutos retornados do banco para restauranteID={restauranteID}: {pratos}")  # Log (tuplas)
+        itens = []
+        for prato in pratos:
+            formatted = formataPrato(prato)
+            if formatted:
+                itens.append(formatted)
+            else:
+                print(f"Prato ignorado devido a erro de formatação: {prato}")  # Log
+        print(f"Pratos formatados para restauranteID={restauranteID}: {len(itens)} itens - {itens}")  # Log
+        return jsonify(itens), 200
+    except Exception as e:
+        print(f"Erro ao listar pratos: {str(e)}")  # Log
+        return jsonify([]), 200
+    finally:
+        cursor.close()
+        conn.close()
 
-    return jsonify(itens), 200
+# ---------------------- VERIFICAR HORÁRIO RESTAURANTE ----------------------
+@app.route('/verificarHorarioRestaurante', methods=['GET'])
+def verificarHorarioRestaurante():
+    restauranteID = request.args.get('restauranteID')
+    if not restauranteID:
+        return jsonify({"error": "RestauranteID é obrigatório"}), 400
+    
+    conn = connect()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SET lc_time_names = 'pt_BR'")  # Define nomes de dias em português
+        query = """
+            SELECT COUNT(*) AS aberto
+            FROM HorariosFuncionamento
+            WHERE RestauranteID = %s
+            AND DiaSemana = DAYNAME(CURDATE())
+            AND CURRENT_TIME BETWEEN TIME(HrAbertura) AND TIME(HrFechamento)
+        """
+        cursor.execute(query, (restauranteID,))
+        result = cursor.fetchone()
+        return jsonify({"aberto": result['aberto'] > 0}), 200
+    except Exception as e:
+        print(f"Erro ao verificar horário: {str(e)}")
+        return jsonify({"error": "Erro ao verificar horário"}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 # ---------------------- LISTAR ITENS POR PESQUISA ----------------------
 @app.route('/listarItensPesquisa', methods=['GET'])
 def listarItensPesquisa():
     pesquisa = request.args.get('pesquisa')
+    restauranteID = request.args.get('restauranteID')
     conn = connect()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM Prato WHERE Nome LIKE %s", ('%' + pesquisa + '%',))
-    itens = [formataPrato(p) for p in cursor.fetchall()]
-    return jsonify(itens), 200
+    cursor = conn.cursor()  # Mudança: sem dictionary=True, retorna tuplas
+    try:
+        query = """
+            SELECT p.*
+            FROM Prato p
+            WHERE p.Nome LIKE %s
+            AND p.Disponibilidade = TRUE
+        """
+        params = ['%' + pesquisa + '%']
+        if restauranteID:
+            query += " AND p.RestauranteID = %s"
+            params.append(restauranteID)
+        
+        cursor.execute(query, params)
+        pratos = cursor.fetchall()
+        print(f"Pratos pesquisados brutos: {pratos}")  # Log
+        itens = []
+        for prato in pratos:
+            formatted = formataPrato(prato)
+            if formatted:
+                itens.append(formatted)
+            else:
+                print(f"Prato pesquisado ignorado: {prato}")  # Log
+        print(f"Pratos pesquisados formatados: {len(itens)} itens - {itens}")  # Log
+        return jsonify(itens), 200
+    except Exception as e:
+        print(f"Erro ao listar itens pesquisados: {str(e)}")  # Log
+        return jsonify([]), 200
+    finally:
+        cursor.close()
+        conn.close()
 
 # ---------------------- VERIFICAR DISPONIBILIDADE ----------------------
 @app.route('/verificarDisponibilidade', methods=['POST'])
@@ -229,18 +393,33 @@ def verificarDisponibilidade():
     data = request.json
     itens = data['itens']
     conn = connect()
-    cursor = conn.cursor()
-
-    disponibilidade = []
-    for item in itens:
-        cursor.execute("SELECT * FROM Prato WHERE PratoID = %s", (item['PratoID'],))
-        prato = cursor.fetchone()
-        disponibilidade.append({
-            "Item": item,
-            "Disponibilidade": prato[5] if prato else 0
-        })
-
-    return jsonify(disponibilidade), 200
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SET lc_time_names = 'pt_BR'")  # Define nomes de dias em português
+        disponibilidade = []
+        for item in itens:
+            cursor.execute("SELECT * FROM Prato WHERE PratoID = %s", (item['PratoID'],))
+            prato = cursor.fetchone()
+            cursor.execute("""
+                SELECT COUNT(*) AS aberto
+                FROM HorariosFuncionamento
+                WHERE RestauranteID = %s
+                AND DiaSemana = DAYNAME(CURDATE())
+                AND CURRENT_TIME BETWEEN TIME(HrAbertura) AND TIME(HrFechamento)
+            """, (item['RestauranteID'],))
+            aberto = cursor.fetchone()['aberto'] > 0
+            disponibilidade.append({
+                "Item": item,
+                "Disponibilidade": prato['Disponibilidade'] if prato else 0,
+                "RestauranteAberto": aberto
+            })
+        return jsonify(disponibilidade), 200
+    except Exception as e:
+        print(f"Erro ao verificar disponibilidade: {str(e)}")
+        return jsonify({"error": "Erro ao verificar disponibilidade"}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 # ---------------------- FINALIZAR PEDIDO ----------------------
 @app.route('/pedido', methods=['POST'])
@@ -378,7 +557,7 @@ def cancelarPedido():
     cursor = conn.cursor()
     cursor.execute("UPDATE Pedido SET StatusPedido = %s WHERE PedidoID = %s", ("Cancelado", pedidoID))
     conn.commit()
-    return jsonify("OK"), 200
+    return jsonify({"message": "Pedido cancelado e estoque revertido (se pendente)"}), 200
 
 @app.route('/saiuEntrega', methods=['GET'])
 def saiuEntrega():
@@ -393,28 +572,23 @@ def saiuEntrega():
 @app.route('/adicionarItemCardapio', methods=['POST'])
 def adicionarItemCardapio():
     data = request.json
+    print(f"Dados recebidos para adicionar item: {data}")  # Log para depuração
     conn = connect()
-    cursor = conn.cursor(dictionary=True)  # usa dictionary=True p/ pegar resultado como dict
+    cursor = conn.cursor(dictionary=True)
     conn.start_transaction()
     try:
-        # Pega o nome da categoria
         categoria_nome = data.get('categoriaNome')
         if not categoria_nome:
-            return jsonify({"Erro": "Categoria é obrigatória"}), 400
+            return jsonify({"error": "Categoria é obrigatória"}), 400
 
-        # Verifica se a categoria já existe
         cursor.execute("SELECT CategoriaID FROM CategoriasPratos WHERE NomeCategoria = %s", (categoria_nome,))
         row = cursor.fetchone()
-
         if row:
             categoriaID = row['CategoriaID']
         else:
-            # Cria a categoria caso não exista
             cursor.execute("INSERT INTO CategoriasPratos (NomeCategoria) VALUES (%s)", (categoria_nome,))
-            conn.commit()
             categoriaID = cursor.lastrowid
 
-        # Agora insere o prato com o ID da categoria
         cursor.execute("""
             INSERT INTO Prato (RestauranteID, Nome, Descricao, Preco, Disponibilidade, Estoque, CategoriaID)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -429,10 +603,12 @@ def adicionarItemCardapio():
         ))
 
         conn.commit()
+        print(f"Item adicionado com sucesso: PratoID={cursor.lastrowid}")  # Log
         return jsonify({"success": True, "message": "Item Adicionado"}), 200
     except Exception as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"Erro ao adicionar item: {str(e)}")  # Log
+        return jsonify({"error": str(e)}), 500
     finally:
         cursor.close()
         conn.close()

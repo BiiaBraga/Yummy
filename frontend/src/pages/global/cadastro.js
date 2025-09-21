@@ -70,11 +70,9 @@ function Cadastro() {
       });
 
       if (!response.ok) {
-        if (response.status === 500) {
-          alert("Erro interno do servidor!");
-        } else if (response.status === 400) {
-          alert("Erro ao cadastrar usuário!");
-        }
+        const errorData = await response.json();  // Lê o corpo da resposta de erro
+        const errorMessage = errorData.error || "Erro ao cadastrar usuário!";  // Usa a mensagem do backend
+        alert(errorMessage);  // Exibe a mensagem específica
         return;
       }
 

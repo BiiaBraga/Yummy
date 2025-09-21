@@ -6,8 +6,7 @@ function PaginaRestaurante() {
   const apiRoot = process.env.REACT_APP_API_URL;
   const navigate = useNavigate();
 
-  const { userType, userID, userName, setUserType, setUserID, setUserName } =
-    useUser();
+  const { userType, userID, userName, setUserType, setUserID, setUserName } = useUser();
 
   const [showPerfilOptions, setShowPerfilOptions] = useState(false);
   const [items, setItems] = useState([]);
@@ -21,9 +20,11 @@ function PaginaRestaurante() {
         `${apiRoot}/listarItensRestaurante?restauranteID=${userID}`
       );
       const data = await response.json();
-      setItems(data);
+      // Garante que data é um array
+      setItems(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Erro ao buscar itens do restaurante", error);
+      setItems([]); // Define array vazio em caso de erro
     }
   };
 
@@ -42,6 +43,7 @@ function PaginaRestaurante() {
       console.log("Res após setRes:", [restauranteData]); // Log imediato
     } catch (error) {
       console.error("Erro ao buscar restaurante", error);
+      setRes([]); // Define array vazio em caso de erro
     }
   };
 
@@ -51,12 +53,21 @@ function PaginaRestaurante() {
         `${apiRoot}/listarItensPesquisa?pesquisa=${pesquisa}&restauranteID=${userID}`
       );
       const data = await response.json();
-      if (data.length === 0) {
-        alert("Nenhum item encontrado");
+      // Garante que data é um array
+      if (Array.isArray(data)) {
+        setItems(data);
+        if (data.length === 0) {
+          alert("Nenhum item encontrado");
+        }
+      } else {
+        console.error("Resposta inválida em fetchItemsPesquisa:", data);
+        setItems([]);
+        alert("Erro ao buscar itens pesquisados");
       }
-      setItems(data);
     } catch (error) {
       console.error("Erro ao buscar itens pesquisados", error);
+      setItems([]);
+      alert("Erro ao conectar com o servidor!");
     }
   };
 
@@ -74,12 +85,13 @@ function PaginaRestaurante() {
       );
       const data = await response.json();
       if (data === "OK") {
-        fetchItems();
+        fetchItems(); // Recarrega os itens após alterar disponibilidade
       } else {
         alert("Erro ao trocar disponibilidade");
       }
     } catch (error) {
       console.error("Erro ao trocar disponibilidade", error);
+      alert("Erro ao conectar com o servidor!");
     }
   };
 
@@ -112,7 +124,7 @@ function PaginaRestaurante() {
       <header className="header d-flex flex-row justify-content-between p-3">
         <div className="d-flex align-items-center gap-4">
           <div className="header-title" onClick={() => navigate("/")}>
-            Food-EUS
+            Yummy
           </div>
           <div
             className="header-subtitle p-2"
@@ -180,7 +192,7 @@ function PaginaRestaurante() {
             ></i>
           </div>
           <div className="menu-container px-3 d-flex gap-3 flex-wrap">
-            {items.length !== 0 ? (
+            {items.length > 0 ? (
               items.map((item) => (
                 <div
                   key={item.PratoID}

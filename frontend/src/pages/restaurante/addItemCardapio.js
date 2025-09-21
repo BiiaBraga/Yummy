@@ -75,7 +75,7 @@ function AddItemCardapio() {
       <header className="header d-flex flex-row justify-content-between p-3">
         <div className="d-flex align-items-center gap-4">
           <div className="header-title" onClick={() => navigate("/")}>
-            Food-EUS
+            Yummy
           </div>
           <div
             className="header-subtitle p-2"

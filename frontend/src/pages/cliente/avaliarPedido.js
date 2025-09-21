@@ -70,7 +70,7 @@ function AvaliarPedido() {
             <div className="background"></div>
             <header className="header d-flex justify-content-between p-3">
                 <div className="d-flex align-items-center gap-4">
-                    <div className="header-title" onClick={() => navigate("/")}>Food-EUS</div>
+                    <div className="header-title" onClick={() => navigate("/")}>Yummy</div>
                     <div className="header-subtitle p-2" onClick={() => navigate(`/pagina${userType}`)}>
                         Inicio
                     </div>

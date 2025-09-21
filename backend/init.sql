@@ -145,6 +145,28 @@ BEGIN
 END//
 DELIMITER ;
 
+-- Trigger que incrementa o estoque caso pedido seja cancelado e atualiza a disponibilidade se necessario
+DELIMITER //
+CREATE TRIGGER IF NOT EXISTS reverter_estoque_cancelamento
+AFTER UPDATE ON Yummy.Pedido
+FOR EACH ROW
+BEGIN
+    IF NEW.StatusPedido = 'Cancelado' AND OLD.StatusPedido = 'Pendente' THEN
+        -- Reverta o estoque para cada item do pedido
+        UPDATE Yummy.Prato p
+        JOIN Yummy.ItemPedido ip ON p.PratoID = ip.PratoID
+        SET p.Estoque = p.Estoque + ip.Quantidade
+        WHERE ip.PedidoID = NEW.PedidoID;
+
+        -- Restaure disponibilidade se estoque > 0 após reversão
+        UPDATE Yummy.Prato
+        SET Disponibilidade = TRUE
+        WHERE PratoID IN (SELECT DISTINCT PratoID FROM Yummy.ItemPedido WHERE PedidoID = NEW.PedidoID)
+          AND Estoque > 0;
+    END IF;
+END//
+DELIMITER ;
+
 -- Trigger que verifica disponibilidade do prato antes de fazer o pedido
 DELIMITER //
 CREATE TRIGGER IF NOT EXISTS verifica_disponibilidade
