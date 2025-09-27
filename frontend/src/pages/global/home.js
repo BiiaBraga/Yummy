@@ -5,9 +5,8 @@ function Home() {
   const navigate = useNavigate();
 
   return (
-    <div className="screen d-flex flex-column align-items-center justify-content-center no-select">
-      <div className="background"></div>
-      <header className="header d-flex flex-row justify-content-between p-3">
+    <div className="screen" style={{ backgroundImage: 'url("/food-bg.jpg")', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <header className="header">
         <div className="d-flex align-items-center gap-4">
           <div className="header-title" onClick={() => navigate("/")}>Yummy</div>
         </div>
@@ -21,8 +20,21 @@ function Home() {
         </div>
       </header>
 
-      <main className="main d-flex p-3 gap-3 flex-column align-items-center justify-content-center">
-        <img className="gif" src="/pato-girando.gif" alt="gif"></img>
+      <main className="main_login">
+        <div className="home-content">
+          <img 
+            src="/logo.png" 
+            alt="Yummy Logo" 
+            style={{ width: '250px', height: 'auto', marginBottom: '20px' }} 
+          />
+          <p>Comida Rápida & Deliciosa</p>
+          <button 
+            className="btn"
+            onClick={() => navigate("/login")}
+          >
+            Explorar o Menu
+          </button>
+        </div>
       </main>
     </div>
   );
