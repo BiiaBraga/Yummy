@@ -120,7 +120,7 @@ function PaginaRestaurante() {
       <div className="background"></div>
       <header className="header d-flex flex-row justify-content-between p-3">
         <div className="d-flex align-items-center gap-4">
-          <div className="header-title" onClick={() => navigate("/")}>
+          <div className="header-title" onClick={() => navigate("/paginaRestaurante")}>
             Yummy
           </div>
           <div

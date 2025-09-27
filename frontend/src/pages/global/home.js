@@ -6,7 +6,7 @@ function Home() {
 
   return (
     <div className="screen" style={{ backgroundImage: 'url("/food-bg.jpg")', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-      <header className="header">
+      <header className="header-home">
         <div className="d-flex align-items-center gap-4">
           <div className="header-title" onClick={() => navigate("/")}>Yummy</div>
         </div>
