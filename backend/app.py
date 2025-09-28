@@ -447,65 +447,114 @@ def finalizarPedido():
 @app.route('/listarPedidosCliente', methods=['GET'])
 def listarPedidosCliente():
     clienteID = request.args.get('clienteID')
+    if not clienteID:
+        return jsonify({"error": "clienteID é obrigatório"}), 400
+
     conn = connect()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM Pedido WHERE ClienteID = %s ORDER BY DataHora DESC", (clienteID,))
-    pedidos = [formataPedido(p) for p in cursor.fetchall()]
+    try:
+        cursor.execute("SELECT * FROM Pedido WHERE ClienteID = %s ORDER BY DataHora DESC", (clienteID,))
+        pedidos = [formataPedido(p) for p in cursor.fetchall()]
 
-    pedidoCompleto = []
-    for pedido in pedidos:
-        cursor.execute("SELECT * FROM ItemPedido WHERE PedidoID = %s", (pedido['PedidoID'],))
-        itensPedidos = [formataItemPedido(i) for i in cursor.fetchall()]
-        cursor.execute("SELECT * FROM Endereco WHERE EnderecoID = %s", (pedido['EnderecoID'],))
-        endereco = formataEndereco(cursor.fetchone())
-        cursor.execute("SELECT * FROM Restaurante WHERE RestauranteID = %s", (pedido['RestauranteID'],))
-        restaurante = formataRestaurante(cursor.fetchone())
-        cursor.execute("SELECT * FROM Avaliacao WHERE PedidoID = %s", (pedido['PedidoID'],))
-        avaliacao = cursor.fetchone()
-        avaliacao = formataAvaliacao(avaliacao) if avaliacao else None
+        pedidoCompleto = []
+        for pedido in pedidos:
+            cursor.execute("SELECT * FROM ItemPedido WHERE PedidoID = %s", (pedido['PedidoID'],))
+            itensPedidos = [formataItemPedido(i) for i in cursor.fetchall()]
+            cursor.execute("SELECT * FROM Endereco WHERE EnderecoID = %s", (pedido['EnderecoID'],))
+            endereco = formataEndereco(cursor.fetchone())
+            cursor.execute("SELECT * FROM Restaurante WHERE RestauranteID = %s", (pedido['RestauranteID'],))
+            restaurante = formataRestaurante(cursor.fetchone())
+            cursor.execute("SELECT * FROM Avaliacao WHERE PedidoID = %s", (pedido['PedidoID'],))
+            avaliacao = cursor.fetchone()
+            avaliacao = formataAvaliacao(avaliacao) if avaliacao else None
 
-        itensFormatados = []
-        for item in itensPedidos:
-            cursor.execute("SELECT * FROM Prato WHERE PratoID = %s", (item['PratoID'],))
-            prato = formataPrato(cursor.fetchone())
-            itensFormatados.append({"ItemPedido": item, "Prato": prato})
+            itensFormatados = []
+            for item in itensPedidos:
+                cursor.execute("""
+                    SELECT
+                        p.PratoID, p.RestauranteID, p.Nome, p.Descricao, p.Preco, p.Disponibilidade, p.Estoque, p.CategoriaID, p.URL_Imagem,
+                        r.Nome AS NomeRestaurante, c.NomeCategoria
+                    FROM Prato p
+                    JOIN Restaurante r ON p.RestauranteID = r.RestauranteID
+                    JOIN CategoriasPratos c ON p.CategoriaID = c.CategoriaID
+                    WHERE p.PratoID = %s
+                """, (item['PratoID'],))
+                prato = formataPrato(cursor.fetchone())
+                if prato:  # Verifica se o prato existe
+                    itensFormatados.append({"ItemPedido": item, "Prato": prato})
 
-        pedidoCompleto.append({"Pedido": pedido, "Itens": itensFormatados, "Endereco": endereco,
-                               "Restaurante": restaurante, "Avaliacao": avaliacao})
+            pedidoCompleto.append({
+                "Pedido": pedido,
+                "Itens": itensFormatados,
+                "Endereco": endereco,
+                "Restaurante": restaurante,
+                "Avaliacao": avaliacao
+            })
 
-    return jsonify(pedidoCompleto), 200
+        return jsonify(pedidoCompleto), 200
+    except Exception as e:
+        print(f"Erro ao listar pedidos: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 # ---------------------- LISTAR PEDIDOS RESTAURANTE ----------------------
 @app.route('/listarPedidosRestaurante', methods=['GET'])
 def listarPedidosRestaurante():
     restauranteID = request.args.get('restauranteID')
+    if not restauranteID:
+        return jsonify({"error": "restauranteID é obrigatório"}), 400
+
     conn = connect()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM Pedido WHERE RestauranteID = %s ORDER BY DataHora DESC", (restauranteID,))
-    pedidos = [formataPedido(p) for p in cursor.fetchall()]
+    try:
+        cursor.execute("SELECT * FROM Pedido WHERE RestauranteID = %s ORDER BY DataHora DESC", (restauranteID,))
+        pedidos = [formataPedido(p) for p in cursor.fetchall()]
 
-    pedidoCompleto = []
-    for pedido in pedidos:
-        cursor.execute("SELECT * FROM ItemPedido WHERE PedidoID = %s", (pedido['PedidoID'],))
-        itensPedidos = [formataItemPedido(i) for i in cursor.fetchall()]
-        cursor.execute("SELECT * FROM Endereco WHERE EnderecoID = %s", (pedido['EnderecoID'],))
-        endereco = formataEndereco(cursor.fetchone())
-        cursor.execute("SELECT * FROM Cliente WHERE ClienteID = %s", (pedido['ClienteID'],))
-        cliente = formataCliente(cursor.fetchone())
-        cursor.execute("SELECT * FROM Avaliacao WHERE PedidoID = %s", (pedido['PedidoID'],))
-        avaliacao = cursor.fetchone()
-        avaliacao = formataAvaliacao(avaliacao) if avaliacao else None
+        pedidoCompleto = []
+        for pedido in pedidos:
+            cursor.execute("SELECT * FROM ItemPedido WHERE PedidoID = %s", (pedido['PedidoID'],))
+            itensPedidos = [formataItemPedido(i) for i in cursor.fetchall()]
+            cursor.execute("SELECT * FROM Endereco WHERE EnderecoID = %s", (pedido['EnderecoID'],))
+            endereco = formataEndereco(cursor.fetchone())
+            cursor.execute("SELECT * FROM Cliente WHERE ClienteID = %s", (pedido['ClienteID'],))
+            cliente = formataCliente(cursor.fetchone())
+            cursor.execute("SELECT * FROM Avaliacao WHERE PedidoID = %s", (pedido['PedidoID'],))
+            avaliacao = cursor.fetchone()
+            avaliacao = formataAvaliacao(avaliacao) if avaliacao else None
 
-        itensFormatados = []
-        for item in itensPedidos:
-            cursor.execute("SELECT * FROM Prato WHERE PratoID = %s", (item['PratoID'],))
-            prato = formataPrato(cursor.fetchone())
-            itensFormatados.append({"ItemPedido": item, "Prato": prato})
+            itensFormatados = []
+            for item in itensPedidos:
+                cursor.execute("""
+                    SELECT
+                        p.PratoID, p.RestauranteID, p.Nome, p.Descricao, p.Preco, p.Disponibilidade, p.Estoque, p.CategoriaID, p.URL_Imagem,
+                        r.Nome AS NomeRestaurante, c.NomeCategoria
+                    FROM Prato p
+                    JOIN Restaurante r ON p.RestauranteID = r.RestauranteID
+                    JOIN CategoriasPratos c ON p.CategoriaID = c.CategoriaID
+                    WHERE p.PratoID = %s
+                """, (item['PratoID'],))
+                prato = cursor.fetchone()
+                prato = formataPrato(prato) if prato else None
+                if prato:  # Verifica se o prato existe
+                    itensFormatados.append({"ItemPedido": item, "Prato": prato})
 
-        pedidoCompleto.append({"Pedido": pedido, "Itens": itensFormatados, "Endereco": endereco,
-                               "Cliente": cliente, "Avaliacao": avaliacao})
+            pedidoCompleto.append({
+                "Pedido": pedido,
+                "Itens": itensFormatados,
+                "Endereco": endereco,
+                "Cliente": cliente,
+                "Avaliacao": avaliacao
+            })
 
-    return jsonify(pedidoCompleto), 200
+        return jsonify(pedidoCompleto), 200
+    except Exception as e:
+        print(f"Erro ao listar pedidos do restaurante: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 # ---------------------- LISTAR AVALIAÇÕES RESTAURANTE ----------------------
 @app.route('/listarAvaliacoesRestaurante', methods=['GET'])
@@ -784,6 +833,7 @@ def avaliarPedido():
                     data['dataHora'], data['avaliacao'], data['comentario']))
     conn.commit()
     return jsonify("OK"), 200
+
 
 # ---------------------- MAIN ----------------------
 if __name__ == '__main__':

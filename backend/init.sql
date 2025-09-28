@@ -114,8 +114,8 @@ BEGIN
     DECLARE media FLOAT;
     SELECT AVG(Nota) INTO media FROM Yummy.Avaliacao WHERE RestauranteID = NEW.RestauranteID;
     UPDATE Yummy.Restaurante SET NotaMedia = media WHERE RestauranteID = NEW.RestauranteID;
-END//
-DELIMITER ;
+END
+// DELIMITER ;
 
 -- Trigger que atualiza o status do pedido após a avaliação
 DELIMITER //
