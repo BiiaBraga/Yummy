@@ -18,7 +18,7 @@ function PaginaRestaurante() {
   const fetchItems = async () => {
     try {
       const response = await fetch(
-        `${apiRoot}/listarItensRestaurante?restauranteID=${userID}`
+        `${apiRoot}/listarItensRestaurantePainel?restauranteID=${userID}`
       );
       const data = await response.json();
       setItems(Array.isArray(data) ? data : []);

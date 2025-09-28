@@ -287,6 +287,28 @@ def listarItensRestaurante():
         cursor.close()
         conn.close()
 
+# ---------------------- LISTAR OS ITENS DO RESTAURANTE (TODOS OS ITENS) ----------------------
+@app.route('/listarItensRestaurantePainel', methods=['GET'])
+def listarItensRestaurantePainel():
+    restauranteID = request.args.get('restauranteID')
+    conn = connect()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT p.PratoID, p.RestauranteID, p.Nome, p.Descricao, p.Preco, 
+                   p.Disponibilidade, p.Estoque, p.CategoriaID, p.URL_Imagem, 
+                   r.Nome AS NomeRestaurante, c.NomeCategoria
+            FROM Prato p
+            JOIN Restaurante r ON p.RestauranteID = r.RestauranteID
+            JOIN CategoriasPratos c ON p.CategoriaID = c.CategoriaID
+            WHERE p.RestauranteID = %s
+        """, (restauranteID,))
+        pratos = [formataPrato(p) for p in cursor.fetchall()]
+        return jsonify(pratos), 200
+    finally:
+        cursor.close()
+        conn.close()
+
 # ---------------------- LISTAR PRATOS RESTAURANTE (TODOS DISPONÍVEIS) ----------------------
 @app.route('/listarPratosRestaurante', methods=['GET'])
 def listarPratosRestaurante():
