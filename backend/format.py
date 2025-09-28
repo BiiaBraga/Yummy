@@ -57,7 +57,9 @@ def formataPrato(prato):
         "Disponibilidade": prato[5],
         "Estoque": prato[6],
         "CategoriaID": prato[7],
-        "URL_Imagem": prato[8]
+        "URL_Imagem": prato[8],
+        "NomeRestaurante": prato[9],
+        "NomeCategoria": prato[10]
     }
 
 def formataItemPedido(item):

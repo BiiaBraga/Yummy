@@ -16,7 +16,10 @@ function PaginaCliente() {
   const [res, setRes] = useState([]);
   const [observacoes, setObservacoes] = useState({});
   const [pesquisa, setPesquisa] = useState("");
-  const [selectedRestauranteID, setSelectedRestauranteID] = useState(null); // Novo estado
+  const [selectedRestauranteID, setSelectedRestauranteID] = useState(null);
+  // Adicionado: Estados para avaliações
+  const [showAvaliacoes, setShowAvaliacoes] = useState(false);
+  const [avaliacoes, setAvaliacoes] = useState([]);
 
   // Buscar itens do cardápio
   const fetchItems = async () => {
@@ -54,6 +57,27 @@ function PaginaCliente() {
       console.log(error);
       alert("Erro ao conectar com o servidor!");
       setRes([]);
+    }
+  };
+
+  // Adicionado: Função para buscar avaliações
+  const fetchAvaliacoes = async (restauranteID) => {
+    try {
+      const response = await fetch(`${apiRoot}/listarAvaliacoesRestaurante?restauranteID=${restauranteID}`);
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setAvaliacoes(data);
+        if (data.length === 0) {
+          alert("Nenhuma avaliação encontrada para este restaurante.");
+        }
+      } else {
+        setAvaliacoes([]);
+        alert("Erro ao buscar avaliações.");
+      }
+    } catch (error) {
+      console.log(error);
+      alert("Erro ao conectar com o servidor!");
+      setAvaliacoes([]);
     }
   };
 
@@ -123,14 +147,24 @@ function PaginaCliente() {
 
   const handleRestauranteClick = (restauranteID) => {
     setSelectedRestauranteID(restauranteID);
-    setPesquisa(""); // Limpa a pesquisa ao selecionar um restaurante
-    fetchItems(); // Carrega pratos do restaurante selecionado
+    setPesquisa("");
+    setShowAvaliacoes(false); // Esconde avaliações ao selecionar um restaurante
+    fetchItems();
+  };
+
+  // Adicionado: Função para lidar com o clique no botão Avaliações
+  const handleVerAvaliacoes = () => {
+    if (selectedRestauranteID) {
+      setShowAvaliacoes(true);
+      fetchAvaliacoes(selectedRestauranteID);
+    }
   };
 
   const handleVoltar = () => {
     setSelectedRestauranteID(null);
     setPesquisa("");
-    fetchItems(); // Carrega todos os pratos de restaurantes abertos
+    setShowAvaliacoes(false); // Esconde avaliações ao voltar
+    fetchItems();
   };
 
   const handleFinalizarPedido = async () => {
@@ -184,14 +218,14 @@ function PaginaCliente() {
     }
     fetchItems();
     fetchRestaurantes();
-  }, [selectedRestauranteID]); // Atualiza quando selectedRestauranteID mudar
+  }, [selectedRestauranteID]);
 
   return (
     <div className="screen no-select">
       <div className="background"></div>
       <header className="header d-flex flex-row justify-content-between p-3">
         <div className="d-flex align-items-center gap-4">
-          <div className="header-title" onClick={() =>  {handleVoltar();} }>Yummy</div>
+          <div className="header-title" onClick={() => {handleVoltar();}}>Yummy</div>
           <div className="header-subtitle p-2" onClick={() => navigate(`/pagina${userType}`)}>
             Inicio
           </div>
@@ -244,7 +278,8 @@ function PaginaCliente() {
                   style={{ cursor: "pointer" }}
                 >
                   <h5>{item.Nome}</h5>
-                  <p className="item-price mt-auto">
+                  <p className="menu-item-desc">{item.Culinaria}</p>
+                  <p className="item-price">
                     Nota: {item.NotaMedia !== null ? item.NotaMedia.toFixed(1) : "Sem avaliações"}
                   </p>
                   <p className={item.Aberto ? "text-success" : "text-danger"}>
@@ -259,55 +294,78 @@ function PaginaCliente() {
             )}
           </div>
           <div className="d-flex align-items-center">
-            <h3 className="p-3 menu-title">Menu</h3>
+            <h3 className="p-3 menu-title">{showAvaliacoes ? "Avaliações" : "Menu"}</h3>
             {selectedRestauranteID && (
-              <button className="red-button p-2 m-2" onClick={handleVoltar}>
-                Voltar
-              </button>
+              <>
+                <button className="red-button p-2 m-2" onClick={handleVoltar}>
+                  Voltar
+                </button>
+                <button className="red-button p-2 m-2" onClick={handleVerAvaliacoes}>
+                  Avaliações
+                </button>
+              </>
             )}
           </div>
-          <div className="menu-container px-3 d-flex gap-3 flex-wrap">
-            {items.length !== 0 ? (
-              items.map((item) => (
-                <div key={item.PratoID} className="menu-item p-3 d-flex flex-column col">
-                  {/* Adiciona o container da imagem, usando a URL do banco de dados */}
-                  <div className="image-container">
-                    <img
-                      src={`${apiRoot}${item.URL_Imagem}` || '/caminho/para/imagem/padrao.jpg'} 
-                      alt={item.Nome}
-                      className="item-image"
-                    />
+          {showAvaliacoes ? (
+            <div className="menu-container px-3 d-flex gap-3 flex-wrap">
+              {avaliacoes.length !== 0 ? (
+                avaliacoes.map((avaliacao) => (
+                  <div key={avaliacao.PedidoID} className="menu-item p-3 d-flex flex-column col">
+                    <h5>{avaliacao.NomeCliente}</h5>
+                    <p className="item-price">Nota: {avaliacao.Nota.toFixed(1)}</p>
+                    <p className="menu-item-desc">{avaliacao.Feedback}</p>
                   </div>
-                  
-                  <div className="item-details">
-                    <h5>{item.Nome}</h5>
-                    <p className="menu-item-desc">{item.Descricao}</p>
-                    <p className="item-price mt-auto">R$ {item.Preco.toFixed(2)}</p>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Observação"
-                    className="item-observacao mb-2 px-2"
-                    onChange={(e) => handleObservacao(item.PratoID, e.target.value)}
-                    value={observacoes[item.PratoID] || ""}
-                  />
-                  <button
-                    className="red-button p-2 no-select"
-                    onClick={() => handleAddToCart(item)}
-                    disabled={!res.find((r) => r.RestauranteID === item.RestauranteID)?.Aberto}
-                  >
-                    {res.find((r) => r.RestauranteID === item.RestauranteID)?.Aberto
-                      ? "Adicionar ao carrinho"
-                      : "Restaurante fechado"}
-                  </button>
+                ))
+              ) : (
+                <div className="d-flex flex-column align-items-center justify-content-center no-select">
+                  <h4 className="bold">Nenhuma avaliação encontrada</h4>
                 </div>
-              ))
-            ) : (
-              <div className="d-flex flex-column align-items-center justify-content-center no-select">
-                <h4 className="bold">Nenhum item encontrado</h4>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          ) : (
+            <div className="menu-container px-3 d-flex gap-3 flex-wrap">
+              {items.length !== 0 ? (
+                items.map((item) => (
+                  <div key={item.PratoID} className="menu-item p-3 d-flex flex-column col">
+                    <div className="image-container">
+                      <img
+                        src={`${apiRoot}${item.URL_Imagem}` || '/caminho/para/imagem/padrao.jpg'}
+                        alt={item.Nome}
+                        className="item-image"
+                      />
+                    </div>
+                    <div className="item-details">
+                      <h5>{item.Nome}</h5>
+                      <p className="menu-item-restaurant">Restaurante: {item.NomeRestaurante}</p>
+                      <p className="menu-item-categoria">Categoria: {item.NomeCategoria || "Sem categoria"}</p>
+                      <p className="menu-item-desc">{item.Descricao}</p>
+                      <p className="item-price mt-auto">R$ {item.Preco.toFixed(2)}</p>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Observação"
+                      className="item-observacao mb-2 px-2"
+                      onChange={(e) => handleObservacao(item.PratoID, e.target.value)}
+                      value={observacoes[item.PratoID] || ""}
+                    />
+                    <button
+                      className="red-button p-2 no-select"
+                      onClick={() => handleAddToCart(item)}
+                      disabled={!res.find((r) => r.RestauranteID === item.RestauranteID)?.Aberto}
+                    >
+                      {res.find((r) => r.RestauranteID === item.RestauranteID)?.Aberto
+                        ? "Adicionar ao carrinho"
+                        : "Restaurante fechado"}
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="d-flex flex-column align-items-center justify-content-center no-select">
+                  <h4 className="bold">Nenhum item encontrado</h4>
+                </div>
+              )}
+            </div>
+          )}
         </main>
 
         {showCart && (

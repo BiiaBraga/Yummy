@@ -252,7 +252,7 @@ def listarRestaurantes():
         restaurantes = [formataRestaurante(r) for r in cursor.fetchall()]
         return jsonify(restaurantes), 200
 
-# ---------------------- LISTAR ITENS RESTAURANTE (APENAS ABERTOS) ----------------------
+# ---------------------- LISTAR ITENS RESTAURANTE (APENAS ABERTOS E DISPONÍVEIS) ----------------------
 @app.route('/listarItensRestaurante', methods=['GET'])
 def listarItensRestaurante():
     restauranteID = request.args.get('restauranteID')
@@ -262,15 +262,20 @@ def listarItensRestaurante():
         if restauranteID:
             cursor.execute("""
                 SELECT
-                    PratoID, RestauranteID, Nome, Descricao, Preco, Disponibilidade, Estoque, CategoriaID, URL_Imagem
-                FROM Prato
-                WHERE RestauranteID = %s
+                    p.PratoID, p.RestauranteID, p.Nome, p.Descricao, p.Preco, p.Disponibilidade, p.Estoque, p.CategoriaID, p.URL_Imagem, r.Nome AS NomeRestaurante, c.NomeCategoria
+                FROM Prato p
+                JOIN Restaurante r ON p.RestauranteID = r.RestauranteID
+                JOIN CategoriasPratos c ON p.CategoriaID = c.CategoriaID
+                WHERE p.RestauranteID = %s AND p.Disponibilidade = 1
             """, (restauranteID,))
         else:
             cursor.execute("""
                 SELECT
-                    PratoID, RestauranteID, Nome, Descricao, Preco, Disponibilidade, Estoque, CategoriaID, URL_Imagem
-                FROM Prato
+                    p.PratoID, p.RestauranteID, p.Nome, p.Descricao, p.Preco, p.Disponibilidade, p.Estoque, p.CategoriaID, p.URL_Imagem, r.Nome AS NomeRestaurante, c.NomeCategoria
+                FROM Prato p
+                JOIN Restaurante r ON p.RestauranteID = r.RestauranteID
+                JOIN CategoriasPratos c ON p.CategoriaID = c.CategoriaID
+                WHERE p.Disponibilidade = 1
             """)
 
         pratos = cursor.fetchall()
@@ -291,9 +296,11 @@ def listarPratosRestaurante():
     try:
         cursor.execute("""
             SELECT
-                PratoID, RestauranteID, Nome, Descricao, Preco, Disponibilidade, Estoque, CategoriaID, URL_Imagem
-            FROM Prato
-            WHERE RestauranteID = %s
+                p.PratoID, p.RestauranteID, p.Nome, p.Descricao, p.Preco, p.Disponibilidade, p.Estoque, p.CategoriaID, p.URL_Imagem, r.Nome AS NomeRestaurante, c.NomeCategoria
+            FROM Prato p
+            JOIN Restaurante r ON p.RestauranteID = r.RestauranteID
+            JOIN CategoriasPratos c ON p.CategoriaID = c.CategoriaID
+            WHERE p.RestauranteID = %s AND p.Disponibilidade = 1
         """, (restauranteID,))
 
         pratos = cursor.fetchall()
@@ -333,7 +340,7 @@ def verificarHorarioRestaurante():
         cursor.close()
         conn.close()
 
-# ---------------------- LISTAR ITENS POR PESQUISA ----------------------
+# ---------------------- LISTAR ITENS POR PESQUISA (APENAS DISPONÍVEIS) ----------------------
 @app.route('/listarItensPesquisa', methods=['GET'])
 def listarItensPesquisa():
     pesquisa = request.args.get('pesquisa')
@@ -343,14 +350,16 @@ def listarItensPesquisa():
     try:
         query = """
             SELECT
-                PratoID, RestauranteID, Nome, Descricao, Preco, Disponibilidade, Estoque, CategoriaID, URL_Imagem
-            FROM Prato
-            WHERE Nome LIKE %s OR Descricao LIKE %s
+                p.PratoID, p.RestauranteID, p.Nome, p.Descricao, p.Preco, p.Disponibilidade, p.Estoque, p.CategoriaID, p.URL_Imagem, r.Nome AS NomeRestaurante, c.NomeCategoria
+            FROM Prato p
+            JOIN Restaurante r ON p.RestauranteID = r.RestauranteID
+            JOIN CategoriasPratos c ON p.CategoriaID = c.CategoriaID
+            WHERE (p.Nome LIKE %s OR p.Descricao LIKE %s OR c.NomeCategoria LIKE %s) AND p.Disponibilidade = 1
         """
-        params = (f"%{pesquisa}%", f"%{pesquisa}%")
+        params = (f"%{pesquisa}%", f"%{pesquisa}%", f"%{pesquisa}%")
 
         if restauranteID:
-            query += " AND RestauranteID = %s"
+            query += " AND p.RestauranteID = %s"
             params += (restauranteID,)
 
         cursor.execute(query, params)
@@ -497,6 +506,39 @@ def listarPedidosRestaurante():
                                "Cliente": cliente, "Avaliacao": avaliacao})
 
     return jsonify(pedidoCompleto), 200
+
+# ---------------------- LISTAR AVALIAÇÕES RESTAURANTE ----------------------
+@app.route('/listarAvaliacoesRestaurante', methods=['GET'])
+def listarAvaliacoesRestaurante():
+    restauranteID = request.args.get('restauranteID')
+    if not restauranteID:
+        return jsonify({"error": "RestauranteID é obrigatório"}), 400
+    
+    conn = connect()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT a.PedidoID, a.RestauranteID, a.ClienteID, a.DataHora, a.Nota, a.Feedback, c.Nome AS NomeCliente
+            FROM Avaliacao a
+            JOIN Cliente c ON a.ClienteID = c.ClienteID
+            WHERE a.RestauranteID = %s
+            ORDER BY a.DataHora DESC
+        """, (restauranteID,))
+        avaliacoes = cursor.fetchall()
+        avaliacoesFormatadas = [
+            {
+                **formataAvaliacao(avaliacao),  # Usa formataAvaliacao para as colunas padrão
+                "NomeCliente": avaliacao[6]  # Adiciona NomeCliente ao resultado
+            }
+            for avaliacao in avaliacoes
+        ]
+        return jsonify(avaliacoesFormatadas), 200
+    except Exception as e:
+        print(f"Erro ao listar avaliações: {str(e)}")
+        return jsonify({"error": "Erro ao listar avaliações"}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 # ---------------------- ALTERAR STATUS PEDIDOS ----------------------
 @app.route('/pedidoEntregue', methods=['GET'])

@@ -10,8 +10,9 @@ function PaginaRestaurante() {
 
   const [showPerfilOptions, setShowPerfilOptions] = useState(false);
   const [items, setItems] = useState([]);
-  const [pesquisa, setPesquisa] = useState("");
   const [res, setRes] = useState([]);
+  const [showAvaliacoes, setShowAvaliacoes] = useState(false);
+  const [avaliacoes, setAvaliacoes] = useState([]);
 
   // Buscar itens do restaurante logado
   const fetchItems = async () => {
@@ -20,14 +21,14 @@ function PaginaRestaurante() {
         `${apiRoot}/listarItensRestaurante?restauranteID=${userID}`
       );
       const data = await response.json();
-      // Garante que data é um array
       setItems(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Erro ao buscar itens do restaurante", error);
-      setItems([]); // Define array vazio em caso de erro
+      setItems([]);
     }
   };
 
+  // Buscar dados do restaurante logado
   const fetchRestaurantes = async () => {
     try {
       const response = await fetch(
@@ -38,33 +39,32 @@ function PaginaRestaurante() {
       }
       const data = await response.json();
       const restauranteData = Array.isArray(data) ? data[0] : data;
-      setRes([restauranteData]); // Sempre define como array com o objeto único
+      setRes([restauranteData]);
     } catch (error) {
       console.error("Erro ao buscar restaurante", error);
-      setRes([]); // Define array vazio em caso de erro
+      setRes([]);
     }
   };
 
-  const fetchItemsPesquisa = async (pesquisa) => {
+  // Função para buscar avaliações
+  const fetchAvaliacoes = async () => {
     try {
       const response = await fetch(
-        `${apiRoot}/listarItensPesquisa?pesquisa=${pesquisa}&restauranteID=${userID}`
+        `${apiRoot}/listarAvaliacoesRestaurante?restauranteID=${userID}`
       );
       const data = await response.json();
-      // Garante que data é um array
       if (Array.isArray(data)) {
-        setItems(data);
+        setAvaliacoes(data);
         if (data.length === 0) {
-          console.log("Nenhum item encontrado");
+          console.log("Nenhuma avaliação encontrada para este restaurante.");
         }
       } else {
-        console.error("Resposta inválida em fetchItemsPesquisa:", data);
-        setItems([]);
-        console.log("Erro ao buscar itens pesquisados");
+        setAvaliacoes([]);
+        console.error("Erro ao buscar avaliações.");
       }
     } catch (error) {
-      console.error("Erro ao buscar itens pesquisados", error);
-      setItems([]);
+      console.error("Erro ao buscar avaliações", error);
+      setAvaliacoes([]);
       console.log("Erro ao conectar com o servidor!");
     }
   };
@@ -83,7 +83,7 @@ function PaginaRestaurante() {
       );
       const data = await response.json();
       if (data === "OK") {
-        fetchItems(); // Recarrega os itens após alterar disponibilidade
+        fetchItems();
       } else {
         console.log("Erro ao trocar disponibilidade");
       }
@@ -97,12 +97,16 @@ function PaginaRestaurante() {
     navigate("/editarItemCardapio", { state: item });
   };
 
-  const handlePesquisa = (pesquisa) => {
-    if (pesquisa !== "") {
-      fetchItemsPesquisa(pesquisa);
-    } else {
-      fetchItems();
-    }
+  // Função para exibir avaliações
+  const handleVerAvaliacoes = () => {
+    setShowAvaliacoes(true);
+    fetchAvaliacoes();
+  };
+
+  // Função para voltar ao cardápio
+  const handleVoltar = () => {
+    setShowAvaliacoes(false);
+    fetchItems();
   };
 
   useEffect(() => {
@@ -129,18 +133,6 @@ function PaginaRestaurante() {
           >
             Inicio
           </div>
-        </div>
-
-        <div className="d-flex align-items-center search-bar gap-3 px-3 col mx-3">
-          <i className="bi bi-search search-icon"></i>
-          <input
-            type="text"
-            placeholder="Pesquisar"
-            className="search-bar-input"
-            onChange={(e) => setPesquisa(e.target.value)}
-            value={pesquisa}
-            onKeyDown={(e) => e.key === "Enter" && handlePesquisa(pesquisa)}
-          />
         </div>
 
         <div className="d-flex align-items-center gap-4">
@@ -182,76 +174,105 @@ function PaginaRestaurante() {
               : "Sem avaliações"}
           </h3>
           <div className="d-flex flex-row align-items-center">
-            <h3 className="p-3 menu-title">Cardápio</h3>
+            <h3 className="p-3 menu-title">{showAvaliacoes ? "Avaliações" : "Cardápio"}</h3>
             <i
               className="bi bi-plus-circle add-item-cardapio-icon"
               onClick={() => navigate("/addItemCardapio")}
             ></i>
-          </div>
-          <div className="menu-container px-3 d-flex gap-3 flex-wrap">
-            {items.length > 0 ? (
-              items.map((item) => (
-                <div
-                  key={item.PratoID}
-                  className="menu-item p-3 d-flex flex-column col"
-                >
-                  <div className="image-container mb-3">
-                    <img
-                      src={`${apiRoot}${item.URL_Imagem}`}
-                      alt={item.Nome}
-                      className="item-image"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = `https://placehold.co/150x150/d1d5db/374151?text=${encodeURIComponent(item.Nome.substring(0, 10))}`;
-                      }}
-                    />
-                  </div>
-
-                  <div className="d-flex flex-row align-items-center mb-3">
-                    <h5 className="align-self-center m-0">{item.Nome}</h5>
-                    {item.Disponibilidade === 1 ? (
-                      <p className="menu-item-disp ms-auto align-self-center m-0">
-                        Disponível
-                      </p>
-                    ) : (
-                      <p className="menu-item-indisp ms-auto align-self-center m-0">
-                        Indisponível
-                      </p>
-                    )}
-                  </div>
-                  <p className="menu-item-desc">{item.Descricao}</p>
-                  <p className="item-price mt-auto">
-                    R$ {parseFloat(item.Preco).toFixed(2)}
-                  </p>
-                  <button
-                    className="red-button p-2 mb-2 no-select"
-                    onClick={() => handleEditarItemCardapio(item)}
-                  >
-                    Editar
-                  </button>
-                  {item.Disponibilidade === 1 ? (
-                    <button
-                      className="red-button p-2 no-select"
-                      onClick={() => handleTrocarDisponibilidade(item.PratoID)}
-                    >
-                      Marcar como Indisponível
-                    </button>
-                  ) : (
-                    <button
-                      className="red-button p-2 no-select"
-                      onClick={() => handleTrocarDisponibilidade(item.PratoID)}
-                    >
-                      Marcar como Disponível
-                    </button>
-                  )}
-                </div>
-              ))
+            {showAvaliacoes ? (
+              <button className="red-button p-2 m-2" onClick={handleVoltar}>
+                Voltar
+              </button>
             ) : (
-              <div className="d-flex flex-column align-items-center justify-content-center no-select">
-                <h4 className="bold">Nenhum item encontrado</h4>
-              </div>
+              <button className="red-button p-2 m-2" onClick={handleVerAvaliacoes}>
+                Avaliações
+              </button>
             )}
           </div>
+          {showAvaliacoes ? (
+            <div className="menu-container px-3 d-flex gap-3 flex-wrap">
+              {avaliacoes.length > 0 ? (
+                avaliacoes.map((avaliacao) => (
+                  <div
+                    key={avaliacao.PedidoID}
+                    className="menu-item p-3 d-flex flex-column col"
+                  >
+                    <h5>{avaliacao.NomeCliente}</h5>
+                    <p className="item-price">Nota: {avaliacao.Nota.toFixed(1)}</p>
+                    <p className="menu-item-desc">{avaliacao.Feedback}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="d-flex flex-column align-items-center justify-content-center no-select">
+                  <h4 className="bold">Nenhuma avaliação encontrada</h4>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="menu-container px-3 d-flex gap-3 flex-wrap">
+              {items.length > 0 ? (
+                items.map((item) => (
+                  <div
+                    key={item.PratoID}
+                    className="menu-item p-3 d-flex flex-column col"
+                  >
+                    <div className="image-container mb-3">
+                      <img
+                        src={`${apiRoot}${item.URL_Imagem}`}
+                        alt={item.Nome}
+                        className="item-image"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://placehold.co/150x150/d1d5db/374151?text=${encodeURIComponent(item.Nome.substring(0, 10))}`;
+                        }}
+                      />
+                    </div>
+                    <div className="d-flex flex-row align-items-center mb-3">
+                      <h5 className="align-self-center m-0">{item.Nome}</h5>
+                      {item.Disponibilidade === 1 ? (
+                        <p className="menu-item-disp ms-auto align-self-center m-0">
+                          Disponível
+                        </p>
+                      ) : (
+                        <p className="menu-item-indisp ms-auto align-self-center m-0">
+                          Indisponível
+                        </p>
+                      )}
+                    </div>
+                    <p className="menu-item-desc">{item.Descricao}</p>
+                    <p className="item-price mt-auto">
+                      R$ {parseFloat(item.Preco).toFixed(2)}
+                    </p>
+                    <button
+                      className="red-button p-2 mb-2 no-select"
+                      onClick={() => handleEditarItemCardapio(item)}
+                    >
+                      Editar
+                    </button>
+                    {item.Disponibilidade === 1 ? (
+                      <button
+                        className="red-button p-2 no-select"
+                        onClick={() => handleTrocarDisponibilidade(item.PratoID)}
+                      >
+                        Marcar como Indisponível
+                      </button>
+                    ) : (
+                      <button
+                        className="red-button p-2 no-select"
+                        onClick={() => handleTrocarDisponibilidade(item.PratoID)}
+                      >
+                        Marcar como Disponível
+                      </button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="d-flex flex-column align-items-center justify-content-center no-select">
+                  <h4 className="bold">Nenhum item encontrado</h4>
+                </div>
+              )}
+            </div>
+          )}
         </main>
       </div>
     </div>
