@@ -14,6 +14,17 @@ function PaginaRestaurante() {
   const [showAvaliacoes, setShowAvaliacoes] = useState(false);
   const [avaliacoes, setAvaliacoes] = useState([]);
 
+  // Estados do painel financeiro
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
+  const [lucro, setLucro] = useState(null);
+
+  // Função auxiliar para formatar datas para MySQL (YYYY-MM-DD HH:mm:ss)
+  const formatarData = (data) => {
+    if (!data) return "";
+    return data.replace("T", " ") + ":00";
+  };
+
   // Buscar itens do restaurante logado
   const fetchItems = async () => {
     try {
@@ -107,6 +118,30 @@ function PaginaRestaurante() {
   const handleVoltar = () => {
     setShowAvaliacoes(false);
     fetchItems();
+  };
+
+  // Calcular lucro chamando API
+  const calcularLucro = async () => {
+    if (!dataInicio || !dataFim) {
+      alert("Selecione as datas de início e fim!");
+      return;
+    }
+    try {
+      const response = await fetch(
+        `${apiRoot}/lucroRestaurante?restauranteID=${userID}&dataInicio=${formatarData(
+          dataInicio
+        )}&dataFim=${formatarData(dataFim)}`
+      );
+      const data = await response.json();
+      if (response.ok) {
+        setLucro(data.lucro);
+      } else {
+        alert("Erro ao calcular lucro: " + data.error);
+      }
+    } catch (error) {
+      console.error("Erro ao calcular lucro", error);
+      alert("Erro ao conectar com o servidor!");
+    }
   };
 
   useEffect(() => {
@@ -223,7 +258,9 @@ function PaginaRestaurante() {
                         className="item-image"
                         onError={(e) => {
                           e.target.onerror = null;
-                          e.target.src = `https://placehold.co/150x150/d1d5db/374151?text=${encodeURIComponent(item.Nome.substring(0, 10))}`;
+                          e.target.src = `https://placehold.co/150x150/d1d5db/374151?text=${encodeURIComponent(
+                            item.Nome.substring(0, 10)
+                          )}`;
                         }}
                       />
                     </div>
@@ -273,6 +310,37 @@ function PaginaRestaurante() {
               )}
             </div>
           )}
+
+          {/* Painel Financeiro */}
+          <div className="finance-panel p-3 mt-4">
+            <h3 className="menu-title">Painel Financeiro</h3>
+            <div className="d-flex gap-3 align-items-center">
+              <div>
+                <label>Data Início: </label>
+                <input
+                  type="datetime-local"
+                  value={dataInicio}
+                  onChange={(e) => setDataInicio(e.target.value)}
+                />
+              </div>
+              <div>
+                <label>Data Fim: </label>
+                <input
+                  type="datetime-local"
+                  value={dataFim}
+                  onChange={(e) => setDataFim(e.target.value)}
+                />
+              </div>
+              <button className="red-button p-2" onClick={calcularLucro}>
+                Calcular Lucro
+              </button>
+            </div>
+            {lucro !== null && (
+              <div className="mt-3">
+                <h4>Lucro no período: R$ {parseFloat(lucro).toFixed(2)}</h4>
+              </div>
+            )}
+          </div>
         </main>
       </div>
     </div>

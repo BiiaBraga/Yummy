@@ -2,6 +2,7 @@ import os
 from werkzeug.utils import secure_filename
 from flask import Flask, jsonify, request
 from connector import connect
+from datetime import datetime
 from format import (
     formataPrato, formataPedido, formataItemPedido,
     formataEndereco, formataRestaurante, formataCliente,
@@ -28,7 +29,7 @@ def testeAPI():
         return jsonify("Banco de Dados: Conectado")
     return jsonify("Banco de Dados: Não Conectado")
 
-# ---------------------- LOGIN ----------------------
+# --------------------------- LOGIN -----------------------------
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -52,7 +53,7 @@ def login():
         return jsonify({
             "userType": "Cliente",
             "userID": cliente[0],
-            "userName": cliente[2]  # Nome
+            "userName": cliente[2]  
         }), 200
 
     elif userType == "Restaurante":
@@ -61,16 +62,16 @@ def login():
         return jsonify({
             "userType": "Restaurante",
             "userID": restaurante[0],
-            "userName": restaurante[3]  # Nome
+            "userName": restaurante[3]  
         }), 200
 
     return jsonify("internalServerError"), 500
 
-# ---------------------- CADASTRO ----------------------
+# --------------------------- CADASTRO ---------------------------
 @app.route('/cadastro', methods=['POST'])
 def cadastro():
     data = request.json
-    print(f"Dados recebidos no cadastro: {data}")  # Adiciona log para depuração
+    print(f"Dados recebidos no cadastro: {data}") 
     if not data or "userType" not in data:
         return jsonify("badRequest"), 400
 
@@ -112,7 +113,7 @@ def cadastro():
         cursor.close()
         conn.close()
 
-# ---------------------- ATUALIZAR PERFIL ----------------------
+# ---------------------- ATUALIZAR PERFIL ------------------------
 @app.route('/atualizarPerfil', methods=['POST'])
 def update():
     data = request.get_json()
@@ -125,7 +126,7 @@ def update():
     conn.start_transaction()
 
     try:
-        print(f"Dados recebidos: {data}")  # Depuração
+        print(f"Dados recebidos: {data}")  
         cursor.execute("UPDATE Usuario SET Login = %s WHERE UserID = %s", (data['email'], userID))
         endereco = data['endereco']
         cursor.execute("UPDATE Endereco SET Rua = %s, Numero = %s, Bairro = %s, CEP = %s WHERE UserID = %s",
@@ -137,7 +138,7 @@ def update():
         elif data['userType'] == "Restaurante":
             cursor.execute("UPDATE Restaurante SET Nome = %s, Telefone = %s, Culinaria = %s WHERE RestauranteID = %s",
                            (data['nome'], data['telefone'], data['culinaria'], userID))
-            # Atualiza horários: remove todos e insere os novos apenas se houver horários
+
             cursor.execute("DELETE FROM HorariosFuncionamento WHERE RestauranteID = %s", (userID,))
             if "horarios" in data and data['horarios']:
                 for h in data['horarios']:
@@ -159,11 +160,11 @@ def update():
         cursor.close()
         conn.close()
 
-# ---------------------- EXCLUIR PERFIL ----------------------
+# ------------------------ EXCLUIR PERFIL ------------------------
 @app.route('/excluirConta', methods=['DELETE', 'OPTIONS'])
 def excluir_conta():
     if request.method == 'OPTIONS':
-        return jsonify({}), 200  # Responde ao preflight com 200 OK
+        return jsonify({}), 200  
 
     data = request.json
     if not data or 'userID' not in data or 'userType' not in data:
@@ -200,7 +201,7 @@ def excluir_conta():
         cursor.close()
         conn.close()
 
-# ---------------------- PERFIL ----------------------
+# --------------------------- PERFIL -----------------------------
 @app.route('/perfil', methods=['GET'])
 def perfil():
     userID = request.args.get('userID')
@@ -230,13 +231,13 @@ def perfil():
         
         cursor.execute("SELECT * FROM HorariosFuncionamento WHERE RestauranteID = %s", (userID,))
         horarios = [formataHorario(h) for h in cursor.fetchall()]
-        print(f"Horários retornados para RestauranteID {userID}: {horarios}")  # Depuração
+        print(f"Horários retornados para RestauranteID {userID}: {horarios}")
         
         return jsonify({"Usuario": usuario, "Endereco": endereco, "Restaurante": restaurante, "Horarios": horarios}), 200
 
     return jsonify("notFound"), 404
 
-# ---------------------- LISTAR RESTAURANTES ----------------------
+# ---------------------- LISTAR RESTAURANTES ---------------------
 @app.route('/listarRestaurantes', methods=['GET'])
 def listarRestaurantes():
     restauranteID = request.args.get('restauranteID')
@@ -309,7 +310,7 @@ def listarItensRestaurantePainel():
         cursor.close()
         conn.close()
 
-# ---------------------- LISTAR PRATOS RESTAURANTE (TODOS DISPONÍVEIS) ----------------------
+# ---------------------- LISTAR PRATOS RESTAURANTE (TODOS DISPONÍVEIS DE UM RESTAURANTE ESPECIFICO) ----------------------
 @app.route('/listarPratosRestaurante', methods=['GET'])
 def listarPratosRestaurante():
     restauranteID = request.args.get('restauranteID')
@@ -660,9 +661,9 @@ def saiuEntrega():
 # ---------------------- CARDÁPIO ----------------------
 @app.route('/adicionarItemCardapio', methods=['POST'])
 def adicionarItemCardapio():
-    # Mude para request.form para os dados de texto e request.files para a imagem
-    print(f"Dados de formulário recebidos: {request.form}") # Log para depuração
-    print(f"Arquivos recebidos: {request.files}") # Log para depuração
+    #request.form = dados de texto e request.files = imagem
+    print(f"Dados de formulário recebidos: {request.form}") 
+    print(f"Arquivos recebidos: {request.files}") 
 
     conn = connect()
     cursor = conn.cursor(dictionary=True)
@@ -680,7 +681,6 @@ def adicionarItemCardapio():
         if not all([nome, descricao, preco, estoque, categoria_nome, restauranteID]):
             return jsonify({"error": "Preencha todos os campos obrigatórios"}), 400
 
-        # Verifica ou insere a categoria
         cursor.execute("SELECT CategoriaID FROM CategoriasPratos WHERE NomeCategoria = %s", (categoria_nome,))
         row = cursor.fetchone()
         if row:
@@ -704,7 +704,7 @@ def adicionarItemCardapio():
             
             # Constrói a URL para o front-end
             url_imagem = f'/{filepath}'
-            print(f"Imagem salva em: {url_imagem}") # Log
+            print(f"Imagem salva em: {url_imagem}") 
 
         # Insere os dados do prato no banco de dados, incluindo a URL da imagem
         cursor.execute("""
@@ -750,14 +750,12 @@ def editarItemCardapio():
     conn.start_transaction()
 
     try:
-        # Lê os dados dos campos de texto (FormData)
         nome = request.form['nome']
         descricao = request.form['descricao']
         preco = float(request.form['preco'])
         estoque = int(request.form['estoque'])
         categoria_nome = request.form['categoriaNome']
         
-        # Lógica para a imagem
         imagem_path = None
         # Verifica se um arquivo de imagem foi enviado na requisição
         if 'imagem' in request.files:
@@ -773,7 +771,6 @@ def editarItemCardapio():
                 # Cria a URL que será salva no banco de dados
                 imagem_path = f"/static/uploads/{filename}"
 
-        # Verifica se a categoria existe ou a cria
         cursor.execute("SELECT CategoriaID FROM CategoriasPratos WHERE NomeCategoria = %s", (categoria_nome,))
         row = cursor.fetchone()
         if row:
@@ -785,7 +782,6 @@ def editarItemCardapio():
         
         # Atualiza o prato
         if imagem_path:
-            # Se uma nova imagem foi enviada, atualiza também a URL
             cursor.execute("""
                 UPDATE Prato
                 SET Nome = %s, Descricao = %s, Preco = %s, Estoque = %s, CategoriaID = %s, URL_Imagem = %s
@@ -794,7 +790,6 @@ def editarItemCardapio():
                 nome, descricao, preco, estoque, categoriaID, imagem_path, pratoID
             ))
         else:
-            # Se nenhuma imagem foi enviada, atualiza apenas os outros campos
             cursor.execute("""
                 UPDATE Prato
                 SET Nome = %s, Descricao = %s, Preco = %s, Estoque = %s, CategoriaID = %s
@@ -856,7 +851,39 @@ def avaliarPedido():
     conn.commit()
     return jsonify("OK"), 200
 
+@app.route("/lucroRestaurante", methods=["GET"])
+def lucro_restaurante():
+    try:
+        restaurante_id = request.args.get("restauranteID")
+        data_inicio = request.args.get("dataInicio")
+        data_fim = request.args.get("dataFim")
+
+        if not (restaurante_id and data_inicio and data_fim):
+            return jsonify({"error": "Parâmetros faltando"}), 400
+
+        conn = connect()
+        if conn is None:
+            return jsonify({"error": "Erro na conexão com o banco"}), 500
+
+        cursor = conn.cursor()
+
+        # Executa o procedure e seta o OUT param em @lucro
+        cursor.execute("CALL Yummy.lucro_restaurante(%s, %s, %s, @lucro)", 
+                       (restaurante_id, data_inicio, data_fim))
+        # Agora pega o valor da variável @lucro
+        cursor.execute("SELECT @lucro")
+        row = cursor.fetchone()
+
+        lucro = row[0] if row and row[0] is not None else 0.0
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({"lucro": float(lucro)})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ---------------------- MAIN ----------------------
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)

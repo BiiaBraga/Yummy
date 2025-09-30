@@ -31,7 +31,7 @@ function Login() {
       if (!response.ok) { 
         if (response.status === 404) {
           alert("Usuário ou senha incorretos!");
-        } else if (response.status === 500) {
+        } else if (response.status === 500) {  
           alert("Erro interno do servidor!");
         } else {
           alert("Erro ao fazer login!");

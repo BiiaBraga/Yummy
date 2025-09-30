@@ -201,12 +201,20 @@ DELIMITER ;
 
 -- Procedure que retorna o lucro de um restaurante em um intervalo de tempo
 DELIMITER //
-CREATE PROCEDURE IF NOT EXISTS lucro_restaurante(IN RestauranteID INT, IN DataInicio DATETIME, IN DataFim DATETIME, OUT lucro FLOAT)
+CREATE PROCEDURE lucro_restaurante(
+    IN pRestauranteID INT,
+    IN pDataInicio DATETIME,
+    IN pDataFim DATETIME,
+    OUT pLucro FLOAT
+)
 BEGIN
-    DECLARE lucro FLOAT;
-    SELECT SUM(Total) INTO lucro FROM Yummy.Pedido WHERE RestauranteID = RestauranteID AND DataHora BETWEEN DataInicio AND DataFim;
-    SET lucro = lucro - (lucro * 0.03);
-END//
+    SELECT IFNULL(SUM(Total), 0) * 0.97
+    INTO pLucro
+    FROM Yummy.Pedido
+    WHERE RestauranteID = pRestauranteID
+      AND DataHora BETWEEN pDataInicio AND pDataFim;
+END
+// DELIMITER ;
 
 -- Procedure que retorna o numero de pedidos de um restaurante em um intervalo de tempo
 DELIMITER //
