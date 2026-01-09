@@ -2,6 +2,10 @@
 
 Yummy é um aplicativo de delivery de comida com frontend em React e backend em Flask, projetado para facilitar pedidos de comida em restaurantes. Este projeto consiste em duas componentes principais: um backend (API baseada em Flask) e um frontend (interface de usuário baseada em React).
 
+<p align="center">
+  <img src="yummy.png" alt="Screenshot do Yummy" width="600"/>
+</p>
+
 ## Estrutura do Projeto
 
 O projeto está organizado em duas pastas principais:
